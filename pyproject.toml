@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "PyAIF"
+version = "0.1.0"
+description = "A Python package for Active Inference agents and simulations"
+readme = "README.md"
+authors = [
+  { name = "Diluna A. Warnakulasuriya", email = "adeeshadiluna@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib"
+]
+urls = { 
+    "homepage" = "https://github.com/diluna98/active_inference",
+    "repository" = "https://github.com/diluna98/active_inference",
+    "bugs" = "https://github.com/diluna98/active_inference/issues"
+}
+
+[tool.setuptools.packages.find]
+where = ["PyAIF"]
+include = ["PyAIF", "PyAIF.*"]
