@@ -1,7 +1,7 @@
 import numpy as np
 import os
 from generative_model_new import create_generative_model
-from PyAIF import utils, ActiveInfAgentVec
+from PyAIF import utils, ActiveInfAgent
 from environment import SortingEnv
 import matplotlib.pyplot as plt
 
@@ -50,7 +50,7 @@ if __name__ == "__main__":
         num_controls = [1, 1, 1, 1, 4, 1, 1]
         policies_to_filter = utils.construct_policies(num_states, num_controls, Temp_horizon-1, control_fac_idx)
         policies = filter_policies(policies_to_filter)  # Use only the first model for this simulation
-        ainf_agent = ActiveInfAgentVec(A=A, B=B, states_dim=num_states, obs_dim=num_obs, controls_dim=num_controls,
+        ainf_agent = ActiveInfAgent(A=A, B=B, states_dim=num_states, obs_dim=num_obs, controls_dim=num_controls,
                                     controlable_states=control_fac_idx, trial_length=Temp_horizon,
                                     number_of_msg_passing=100, trials=TRIALS, D=D, C=C,
                                     policies=policies, policy_pruning=False, learning_A=False, learning_D=True, learning_B=False)
