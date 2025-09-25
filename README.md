@@ -8,20 +8,13 @@ The goal of PyAIF is to make Active Inference research practical, modular, and e
 
 ## Installation
 
-### Clone the Repository
+### Clone the Repository and Install
 First, clone the project repository:
 ```bash
-git clone [https://github.com/diluna98/active_inference.git](https://github.com/diluna98/active_inference.git)
+git clone https://github.com/diluna98/active_inference.git
 cd active_inference
-````
-
-### Standard Installation
-
-For most users, install the package using `pip` from the local directory:
-
-```bash
 pip install .
-```
+````
 
 > **NOTE:** This package is under active development. Please expect errors and report any debug information to the maintainer at `dawarn@utu.fi`.
 
