@@ -1,5 +1,4 @@
-````markdown
-# PyAIF: A Python Package for Active Inference Agents
+### PyAIF: A Python Package for Active Inference Agents
 
 **PyAIF** is a Python package designed for building and running **Active Inference agents**. It provides a modular and extensible set of tools to define generative models, construct policies, run simulations, and easily integrate with custom environments.
 
