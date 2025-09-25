@@ -11,7 +11,7 @@ The goal of PyAIF is to make Active Inference research practical, modular, and e
 ### Clone the Repository and Install
 First, clone the project repository:
 ```bash
-git clone https://github.com/diluna98/active_inference.git
+git clone https://github.com/Diluna98/python_active_inference.git
 cd active_inference
 pip install .
 ````
