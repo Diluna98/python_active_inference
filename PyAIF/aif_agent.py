@@ -1,4 +1,4 @@
-import numpy as np
+    import numpy as np
 import copy
 import random
 import os
@@ -681,8 +681,81 @@ class ActiveInfAgent:
             self.policy_dep_posteriors[result_policy_idx,:,:] = result_state_posteriors
             self.F_policy[result_t][result_policy_idx] = result_policy_F
 
-    
     def infer_states(self, trial, t): #implimentation of the MMP
+
+        #@NOTE: Policy_pruning functionality needs to be debugged.
+        if self.policy_pruning:
+            if t > 0:
+                temp_F = np.array(np.log(self.posterior_pi[t-1][:]))
+                mask = (temp_F - np.max(temp_F)) > -self.zeta
+                self.policies = [p for p, m in zip(self.policies, mask) if m]
+
+        for policy_idx, policy in enumerate(self.policies):
+            depolarization = None
+            F = None
+            for nmp in range(self.number_of_msg_passing):  # Number of gradient descent iterations
+                previous_F = copy.deepcopy(F)
+                self.F_policy[t][policy_idx] = previous_F
+                F = 0
+                for factor in range(self.num_factors):
+                    for tau in range(self.temporal_horizon):
+                        third_msg = self.create_object_tensor('zeros', 1, last_dim=self.states_dim[factor])
+                        #previous_policy_dep_posteriors = copy.deepcopy(self.policy_dep_posteriors[policy_idx, tau, factor])       
+                        depolarization = self.log_stable(self.policy_dep_posteriors[policy_idx, tau, factor])
+                        if tau <= t:
+                            # Third message
+                            third_msg = self.expected_log_likelihood_einsum(self.observations[trial, tau, :], factor, policy_idx, tau)
+                        
+                        if tau == 0:
+                            # First message
+                            first_msg = self.log_stable(self.D[factor])
+                            # Second message
+                            action_tau = policy[tau, :]
+                            qs_future = self.policy_dep_posteriors[policy_idx, tau+1, factor]
+                            transposed_B = self.transpose_Bfa(self.B[factor][:, :, action_tau[factor]])
+                            second_msg = self.log_stable(transposed_B.dot(qs_future))
+                        
+                        elif tau == self.temporal_horizon-1:
+                            # First message
+                            actions_tau_1 = policy[tau-1, :]
+                            qs_prev = self.policy_dep_posteriors[policy_idx, tau-1, factor]
+                            first_msg = self.log_stable(self.B[factor][:, :, actions_tau_1[factor]].dot(qs_prev))
+                            # Second message
+                            second_msg = np.zeros((self.D[factor]).shape)
+                        else:
+                            # First message
+                            actions_tau_1 = policy[tau-1, :]
+                            qs_prev = self.policy_dep_posteriors[policy_idx, tau-1, factor]
+                            first_msg = self.log_stable(self.B[factor][:, :, actions_tau_1[factor]].dot(qs_prev))
+                            # Second message
+                            action_tau = policy[tau, :]
+                            qs_future = self.policy_dep_posteriors[policy_idx, tau+1, factor]
+                            transposed_B = self.transpose_Bfa(self.B[factor][:, :, action_tau[factor]])
+                            second_msg = self.log_stable(transposed_B.dot(qs_future))
+
+                        # Compute state prediction error
+                        state_pred_err = 0.5*(first_msg + second_msg) + third_msg - depolarization
+                        depolarization += state_pred_err/self.timeconst
+                        
+               
+                        #@NOTE equation of F in tbl 2 on page 19 of the paper and MATLAB line of code for this is different.
+                        # Following is the implimentation from the MATLAB.
+                        Fintermediate = (self.policy_dep_posteriors[policy_idx, tau, factor]).dot(-self.log_stable(self.policy_dep_posteriors[policy_idx, tau, factor]) + 0.5*(first_msg + second_msg) +third_msg)
+                        F += Fintermediate
+                        #self.vfe_ft[policy_idx, tau, nmp, t, factor] = Fintermediate
+                        
+                        self.policy_dep_posteriors[policy_idx, tau, factor] = self.softmax(np.array(depolarization))
+      
+                #Early stopping condition to exit gradient descent if minimum VFE reached!
+                if nmp > 0 and previous_F is not None:
+                    if F - previous_F < np.exp(-8):
+                        #self.policy_dep_posteriors[policy_idx, tau, factor] = previous_policy_dep_posteriors
+                        self.F_policy[t][policy_idx] = previous_F
+                        break
+
+
+    
+    def infer_states_custom(self, trial, t): #implimentation of the MMP #Only for blind_obident_agent_example
 
         #@NOTE: Policy_pruning functionality needs to be debugged.
         if self.policy_pruning:
@@ -1160,7 +1233,6 @@ class ActiveInfAgent:
         else:
             return None, None
         
-    import numpy as np
 
     def sample(self, probabilities):
         """
