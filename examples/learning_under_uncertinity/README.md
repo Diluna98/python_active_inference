@@ -58,4 +58,4 @@ Success rates measured as the proportion of task consistent actions. The fully u
 
 # Figure
 
-![Plot](images/Figure_1.png)
+![Plot](Figure_1.png)
