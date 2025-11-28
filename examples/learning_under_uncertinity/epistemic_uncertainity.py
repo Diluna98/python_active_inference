@@ -1,5 +1,5 @@
 import numpy as np
-from PyAIF import utils, ActiveInfAgent, FeatureDeviationDetector
+from PyAIF import utils, ActiveInfAgent
 import copy
 import os
 from collections import deque
@@ -262,11 +262,13 @@ def reset_Gmodel():
 
 
 # Create the directory if it doesn't exist
-save_dir = "new_simulations_results_2"
+# Directory of the current file
+save_dir = os.path.dirname(os.path.abspath(__file__))
 os.makedirs(save_dir, exist_ok=True)
 
+
 # Number of simulation runs
-NUM_SIMULATIONS = 10
+NUM_SIMULATIONS = 1
 
 for sim_id in range(1, NUM_SIMULATIONS + 1):
 
@@ -285,8 +287,6 @@ for sim_id in range(1, NUM_SIMULATIONS + 1):
                                 controlable_states=control_fac_idx, trial_length=Temp_horizon,
                                 number_of_msg_passing=100, trials=TRIALS, D=D, C=C,
                                 policies=False, policy_pruning=False, learning_A=True, learning_D=True, learning_B=True)
-    
-    detector = FeatureDeviationDetector(n_features=9, alpha=0.95, h=200.0)
 
     true_states = np.zeros([TRIALS, Temp_horizon, 2])
     outcomes = np.zeros([TRIALS, Temp_horizon, 3])
@@ -314,6 +314,7 @@ for sim_id in range(1, NUM_SIMULATIONS + 1):
     state = get_true_state(trial=0, t=0)
 
     for trial in range(TRIALS):
+        print(f"running trial ({trial}/{TRIALS})............")
         if trial > 0:
             true_states[trial, 0, :] = copy.deepcopy(state[trial - 1, 3, :])
 
@@ -350,10 +351,7 @@ for sim_id in range(1, NUM_SIMULATIONS + 1):
             trust[trial, t] = trust_param
             voice[trial, t] = command_param
 
-        fa, fb, fd, fe, lr, fr, features = ainf_agent.perform_learning(trial)
-        detected = detector.update(features, trial)
-        if detected:
-            print(f"Context change detected at trial {trial}")
+        fa, fb, fd, fe, lr, fr = ainf_agent.perform_learning(trial)
         vfe_fa[trial] = copy.deepcopy(fa)
         vfe_fb[trial] = copy.deepcopy(fb)
         vfe_fd[trial] = copy.deepcopy(fd)
@@ -386,6 +384,6 @@ for sim_id in range(1, NUM_SIMULATIONS + 1):
         "model_averages": mod_averages
     }
 
-    save_path = os.path.join(save_dir, f"HRC_simulation_results_{sim_id}.npy")
+    save_path = os.path.join(save_dir, f"epistemic_simulation_results_{sim_id}.npy")
     np.save(save_path, data)
     print(f"Simulation {sim_id} saved to {save_path}")

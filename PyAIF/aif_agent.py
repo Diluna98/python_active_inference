@@ -1,4 +1,4 @@
-    import numpy as np
+import numpy as np
 import copy
 import random
 import os
@@ -326,7 +326,7 @@ class ActiveInfAgent:
         trial_length=1, number_of_msg_passing = 100, learning_rate = 0.2,
         forgeting_rate = 0.99, trials = 100, alpha = 512, zeta = 0.01, timeconst = 1, D=None,
         C=None, E=None, policies=False, policy_pruning = False,
-        learning_D = False, learning_A = False, learning_B = False, learning_E = False
+        learning_D = False, learning_A = False, learning_B = False, learning_E = False, learning_C = False
     ):
         # Construct policies
         if policies == False:
@@ -356,6 +356,7 @@ class ActiveInfAgent:
         self.pE = E if E else self.create_object_tensor('ones', 1, last_dim = [len(self.policies)])
         self.pE_0 = copy.deepcopy(self.pE)
         self.pC = C
+        self.pC_0 = copy.deepcopy(self.pC)
         for num_el in range(len(C)):
             self.pC[num_el] += 1/32 
         
@@ -409,22 +410,26 @@ class ActiveInfAgent:
         self.learning_B = learning_B
         self.learning_E = learning_E
         self.learning_D = learning_D
+        self.learning_C = learning_C
 
         self.previous_lr = copy.deepcopy(self.learning_rate)
 
     def initialize_variables(self):
         self.policy_dep_posteriors = self.create_object_tensor(last_dim=self.states_dim)
-        self.single_policy_dep_posteriors = copy.deepcopy(self.policy_dep_posteriors[0,:,:])       
+        #self.single_policy_dep_posteriors = copy.deepcopy(self.policy_dep_posteriors[0,:,:])       
         self.posterior_pi = self.create_object_tensor('zeros', self.temporal_horizon, last_dim = [len(self.policies)])
         #self.posterior_updates = self.create_object_tensor('NaN', self.total_dop_res, last_dim = [len(self.policies)])
         self.prior_pi = self.create_object_tensor('zeros', self.temporal_horizon, last_dim = [len(self.policies)])
         self.action_posteriors = self.create_object_tensor('zeros', self.num_factors, self.temporal_horizon - 1)       
         #self.action_confidance = self.create_object_tensor('ones', self.temporal_horizon - 1, self.num_factors, last_dim=self.controls_dim)
-        self.vfe_ft = self.create_object_tensor('zeros', len(self.policies), self.temporal_horizon, self.number_of_msg_passing, self.temporal_horizon, self.num_factors)
+        #self.vfe_ft = self.create_object_tensor('zeros', len(self.policies), self.temporal_horizon, self.number_of_msg_passing, self.temporal_horizon, self.num_factors)
         #self.normalized_firing_rates = self.create_object_tensor('NaN', len(self.policies), self.temporal_horizon, self.temporal_horizon, self.number_of_msg_passing, last_dim=self.states_dim)
         #self.prediction_error = self.create_object_tensor('NaN', len(self.policies), self.temporal_horizon, self.temporal_horizon, self.num_factors)
         self.F_policy = self.create_object_tensor('zeros', self.temporal_horizon, last_dim = [len(self.policies)])
-        self.G_policy = self.create_object_tensor('zeros', self.temporal_horizon, last_dim = [len(self.policies)]) 
+        self.G_policy = self.create_object_tensor('zeros', self.temporal_horizon, last_dim = [len(self.policies)])
+        self.disparity_nu = self.create_object_tensor('zeros', self.temporal_horizon, self.num_modalities, last_dim = self.obs_dim) 
+        self.chosen_policy = self.create_object_tensor('NaN', self.temporal_horizon) 
+        self.expected_obs_chosen = self.create_object_tensor('NaN', self.temporal_horizon, self.num_modalities, last_dim=self.obs_dim)
         
         self.gamma = self.create_object_tensor('NaN', self.temporal_horizon) 
         self.beta_posterior = 1
@@ -940,7 +945,7 @@ class ActiveInfAgent:
 
     
     def infer_policies(self, trial, t):
-        risk = []
+        self.policy_dep_expected_obs = self.create_object_tensor('NaN', self.num_policies, self.temporal_horizon, self.num_modalities, last_dim=self.obs_dim)
         for policy_idx in range(len(self.policies)):
             info_gain_tot = 0
 
@@ -956,7 +961,6 @@ class ActiveInfAgent:
 
             #if self.learning_E:
             #    info_gain_tot += self.calculate_pE_info_gain(policy_idx)
-            risk.append(risk_term)
             self.G_policy[t][policy_idx] += risk_term + ambiguity_term -info_gain_tot
 
         self.update_policy_posterior(trial, t)
@@ -1132,6 +1136,7 @@ class ActiveInfAgent:
         risk_term_policy = 0
         #risk_term_policy_old = 0
         for timestep in range(t, self.temporal_horizon):
+            #self.policy_dep_expected_obs = self.create_object_tensor(last_dim=self.obs_dim)
             for modality_idx, modality in enumerate(self.A):
                 # @NOTE both of the following lines finds the posteriors over observations
                 # One use tensordot with the joint_policy_dep_posteriors and the
@@ -1146,9 +1151,10 @@ class ActiveInfAgent:
 
                 #@NOTE cell_md_dot() and cell_md_dot_py() do the same. cell_md_dot_py() should give better performance.
                 #expected_obs_1 = self.cell_md_dot(modality, self.policy_dep_posteriors[policy_idx, timestep, :])
-                expected_obs = self.cell_md_dot_py(modality, self.policy_dep_posteriors[policy_idx, timestep, :])
+                #expected_obs = self.cell_md_dot_py(modality, self.policy_dep_posteriors[policy_idx, timestep, :])
+                self.policy_dep_expected_obs[policy_idx, timestep][modality_idx] = self.cell_md_dot_py(modality, self.policy_dep_posteriors[policy_idx, timestep, :])
                 #KL_modality = self.log_stable(expected_obs) - self.C[modality_idx][:, t]
-                risk_term_policy += expected_obs.dot(self.C[modality_idx][:, timestep])
+                risk_term_policy += self.policy_dep_expected_obs[policy_idx, timestep][modality_idx].dot(self.C[modality_idx][:, timestep])
         return risk_term_policy
     
     def cell_md_dot_py(self, X, x):
@@ -1246,20 +1252,70 @@ class ActiveInfAgent:
         """
         probabilities = np.ravel(probabilities)
         return np.argmax(np.random.multinomial(1, probabilities))
+    
+
+    def _extract_vfe_features(self):
+        """
+        F_policy: list/array of length T (time steps), each element an array of length P (policies)
+        Returns: feature vector describing the trial
+        """
+        F = np.stack(self.F_policy)  # shape (T, P)
+        T, P = F.shape
+
+        # Basic across-time summaries per policy
+        mean_p = F.mean(axis=0)           # mean per policy (27,)
+        var_p = F.var(axis=0)
+        max_p = F.max(axis=0)
+        
+        # Temporal dynamics (averaged across policies)
+        mean_t = F.mean(axis=1)           # mean per time step (4,)
+        slope_t = np.polyfit(np.arange(T), mean_t, 1)[0]  # trend over time
+
+        # Aggregate summaries
+        global_mean = F.mean()
+        global_max = F.max()
+        global_var = F.var()
+        global_mad = np.median(np.abs(F - np.median(F)))
+
+        # Compact feature vector
+        # Here we include aggregate and a few distributional stats across policies
+        features = np.array([
+            global_mean,
+            global_max,
+            global_var,
+            global_mad,
+            slope_t,
+            np.mean(var_p),
+            np.std(var_p),
+            np.mean(max_p),
+            np.std(max_p)
+        ])
+
+        return features
 
         
     def perform_learning(self, trial):
         
-        
+        #features = self._extract_vfe_features()
         F_stacked = np.vstack(-copy.deepcopy(self.F_policy))
         temporal_horizon = F_stacked.shape[0]  # or set manually
 
         min_values = [F_stacked[t, :].min() for t in range(temporal_horizon)]
+
+        VFE_avg = np.mean(min_values)
+
         self.learning_rate = np.mean(min_values)*0.1
         self.learning_rate = np.clip(self.learning_rate, 0.1, 10)
 
         self.forgeting_rate = self.previous_lr*0.1
         self.forgeting_rate = 1-np.clip(self.forgeting_rate, 0.01, 0.5)
+
+        self.learning_rate = 0.5
+        self.forgeting_rate = 0.5
+        if self.learning_C:
+            for t in range(self.temporal_horizon):
+                for modality_idx in range(len(self.pA)):
+                    self.pC[modality_idx][:, t] += self.learning_rate*self.disparity_nu[t, modality_idx]*self.expected_obs_chosen[t, modality_idx]
         
         if self.learning_A:
             for t in range(self.temporal_horizon):
@@ -1304,18 +1360,19 @@ class ActiveInfAgent:
         if self.learning_D:
             #self.learning_rate = np.min(-np.vstack(self.F_policy)[self.temporal_horizon -1,:])
             for factor_idx in range(self.num_factors):
-                i = self.pD[factor_idx] > 0
-                self.pD[factor_idx] = np.where(
-                    i,
-                    (self.pD[factor_idx] - self.pD_0[factor_idx]) 
-                    + self.pD_0[factor_idx] 
-                    + self.learning_rate * self.bayesian_mod_avg[trial, self.temporal_horizon -1, factor_idx], #self.temporal_horizon -1
-                    self.pD[factor_idx]
-                )                
+                if factor_idx != 9:
+                    i = self.pD[factor_idx] > 0
+                    self.pD[factor_idx] = np.where(
+                        i,
+                        (self.pD[factor_idx] - self.pD_0[factor_idx]) 
+                        + self.pD_0[factor_idx] 
+                        + self.learning_rate * self.bayesian_mod_avg[trial, self.temporal_horizon -1, factor_idx], #self.temporal_horizon -1
+                        self.pD[factor_idx]
+                    )                
                 
-                # free energy of d
-                self.Fd[factor_idx] = self.KL_dirichlet(self.pD[factor_idx], self.pD_prior[factor_idx])
-                del i
+                    # free energy of d
+                    self.Fd[factor_idx] = self.KL_dirichlet(self.pD[factor_idx], self.pD_prior[factor_idx])
+                    del i
 
         if self.learning_B:
             
@@ -1324,9 +1381,10 @@ class ActiveInfAgent:
                 if t > 0:
                     
                     for factor_idx in range(self.num_factors):
+                        action = int(self.action_posteriors[factor_idx, t-1])
                         if factor_idx not in self.controlable_states:
                             continue
-                        action = int(self.action_posteriors[factor_idx, t-1])
+                        
                         state_before = self.bayesian_mod_avg[trial, t-1, factor_idx]
                         state_after = self.bayesian_mod_avg[trial, t, factor_idx]
                         joint_states = np.outer(state_after, state_before)
@@ -1450,12 +1508,48 @@ class ActiveInfAgent:
             self.gamma_update[trial, n] = self.gamma[t]
             self.posterior_updates[n][:] = copy.deepcopy(self.posterior_pi[t][:])
             """
-            # Early stopping condition to exit gradient descent if minimum VFE reached!
+            # Early stopping condition
             if nmp > 0 and previous_beta_posterior is not None:
                 if abs(self.beta_posterior - previous_beta_posterior) < tolerance:
                     break
             previous_beta_posterior = copy.deepcopy(self.beta_posterior)
         del previous_beta_posterior
+
+    def calculate_counterfactual_disparity(self, t, K= None):
+        best_policy = int(np.argmin(-self.G_policy[t][:]))
+        self.chosen_policy[t] = best_policy
+        self.expected_obs_chosen[t] = self.policy_dep_expected_obs[best_policy, t, :]
+        if K == None:
+            for modality_idx in range(self.num_modalities):
+                disparity = 0
+                for policy_idx in range(self.num_policies):
+                    if policy_idx == best_policy:
+                        continue
+                    for timestep in range(t, self.temporal_horizon):
+                        p_best = self.policy_dep_expected_obs[best_policy, timestep][modality_idx]
+                        p_cf   = self.policy_dep_expected_obs[policy_idx, timestep][modality_idx]
+                        disparity += self.KL_categorical(p_best, p_cf)
+                self.disparity_nu[t, modality_idx] += 2 / (1 + np.exp(-1 * disparity)) - 1
+                #self.disparity_nu[modality_idx] = disparity
+                #self.disparity_nu[modality_idx] = 2 / (1 + np.exp(-1 * disparity)) - 1
+        
+        else:
+            # use G policy values to pick K worst
+            G_t = -self.G_policy[t][:]
+            G_t[best_policy] = np.inf
+            cf_indices = np.argsort(G_t)[:K]
+
+            
+            for modality_idx in range(self.num_modalities):
+                disparity = 0
+                for policy_idx in cf_indices:
+                    for timestep in range(t, self.temporal_horizon):
+                        p_best = self.policy_dep_expected_obs[best_policy, timestep][modality_idx]
+                        p_cf   = self.policy_dep_expected_obs[policy_idx, timestep][modality_idx]
+                        disparity += self.KL_categorical(p_best, p_cf)
+                self.disparity_nu[modality_idx] = 2 / (1 + np.exp(-1 * disparity)) - 1
+
+
  
     def is_normalized(self, dist):
         """
@@ -1706,6 +1800,12 @@ class ActiveInfAgent:
         del p_temp
         return 0.5*(norm - avg)
     
+    def KL_categorical(self, p, q):
+    # p, q are arrays over observation categories, sum to 1
+        eps = 1e-16  # prevent log(0)
+        return p * np.log((p + eps) / (q + eps))
+
+    
     def KL_dirichlet(self, q, p):
         # @NOTE this function perform the same operation as in spm_KL_dir
         # using the python functions gammaln and psi from scipy.special
@@ -1762,3 +1862,45 @@ def spm_psi(A):
     # Copyright (C) 2015 Wellcome Trust Centre for Neuroimaging
     # by Karl Friston
     return psi(A) - psi(np.sum(A, axis=0, keepdims=True))
+
+
+class FeatureDeviationDetector:
+    def __init__(self, n_features, alpha=0.95, h=5.0):
+        """
+        n_features: length of your feature vector
+        alpha: smoothing factor for running mean/cov
+        h: detection threshold on deviation score
+        """
+        self.alpha = alpha
+        self.h = h
+        self.mu = np.zeros(n_features)
+        self.cov = np.eye(n_features)
+        self.inv_cov = np.linalg.inv(self.cov)
+        self.initialized = False
+        self.change_points = []
+
+    def update(self, features, t):
+        x = np.asarray(features)
+
+        if not self.initialized:
+            self.mu = x
+            self.cov = np.eye(len(x))
+            self.inv_cov = np.linalg.inv(self.cov)
+            self.initialized = True
+            return False
+
+        # Mahalanobis distance from running mean
+        diff = x - self.mu
+        d2 = float(diff.T @ self.inv_cov @ diff)
+
+        # Update running statistics (exponential moving)
+        self.mu = self.alpha * self.mu + (1 - self.alpha) * x
+        centered = x - self.mu
+        self.cov = self.alpha * self.cov + (1 - self.alpha) * np.outer(centered, centered)
+        # regularize covariance and invert
+        self.inv_cov = np.linalg.inv(self.cov + 1e-6 * np.eye(len(x)))
+
+        detected = d2 > self.h
+        if detected:
+            self.change_points.append(t)
+        return detected

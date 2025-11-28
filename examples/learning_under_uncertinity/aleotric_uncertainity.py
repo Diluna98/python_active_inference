@@ -11,9 +11,9 @@ num_controls_GP = [3, 1]
 def reset_GP():
     global A_GP, B_GP, D_GP
     # Create random arrays for A, B, C. Later these arrays will be filled!
-    A_GP = utils.random_A_matrix(num_obs_GP, num_states_GP) # create sensory likelihood (A matrix) # matrix encodes the probability of
-    B_GP = utils.random_B_matrix(num_states_GP, num_controls_GP) # create transition likelihood (B matrix)
-    D_GP = utils.obj_array_uniform(num_states_GP)
+    A_GP = utils.uniform_A_matrix(num_obs_GP, num_states_GP) # create sensory likelihood (A matrix) # matrix encodes the probability of
+    B_GP = utils.uniform_B_matrix(num_states_GP, num_controls_GP) # create transition likelihood (B matrix)
+    D_GP = utils.uniform_D_matrix(num_states_GP)
 
     D_GP[0] = np.array([1, 0])
     D_GP[1] = np.array([0, 1]) #trust #no trust
@@ -157,10 +157,10 @@ control_fac_idx = [0]
 
 def reset_Gmodel():
     global A, B, D, C
-    A = utils.random_A_matrix(num_obs_GP, num_states_GP) # create sensory likelihood (A matrix) # matrix encodes the probability of
-    B = utils.random_B_matrix(num_states_GP, num_controls_GP) # create transition likelihood (B matrix)
-    D = utils.obj_array_uniform(num_states_GP)
-    C = utils.obj_array_uniform(num_obs) # uniform preferences
+    A = utils.uniform_A_matrix(num_obs_GP, num_states_GP) # create sensory likelihood (A matrix) # matrix encodes the probability of
+    B = utils.uniform_B_matrix(num_states_GP, num_controls_GP) # create transition likelihood (B matrix)
+    D = utils.uniform_D_matrix(num_states_GP)
+    C = utils.zero_C_matrix(num_obs, Temp_horizon)
 
     A = copy.deepcopy(A_GP)*0.1
 
@@ -232,11 +232,11 @@ def reset_Gmodel():
 
 
 # Create the directory if it doesn't exist
-save_dir = "can_delete"
+save_dir = os.path.dirname(os.path.abspath(__file__))
 os.makedirs(save_dir, exist_ok=True)
 
 # Number of simulation runs
-NUM_SIMULATIONS = 10
+NUM_SIMULATIONS = 1
 
 for sim_id in range(1, NUM_SIMULATIONS + 1):
     print(f"Running simulation {sim_id}...")
@@ -251,7 +251,7 @@ for sim_id in range(1, NUM_SIMULATIONS + 1):
 
     reset_GP()
     reset_Gmodel()
-    ainf_agent = ActiveInfAgentVec(A=A, B=B, states_dim=num_states, obs_dim=num_obs, controls_dim=num_controls,
+    ainf_agent = ActiveInfAgent(A=A, B=B, states_dim=num_states, obs_dim=num_obs, controls_dim=num_controls,
                                 controlable_states=control_fac_idx, trial_length=Temp_horizon,
                                 number_of_msg_passing=100, trials=TRIALS, D=D, C=C,
                                 policies=False, policy_pruning=False, learning_A=True, learning_B=True,
@@ -283,6 +283,7 @@ for sim_id in range(1, NUM_SIMULATIONS + 1):
     state = get_true_state(trial=0, t=0)
 
     for trial in range(TRIALS):
+        print(f"running trial ({trial}/{TRIALS})............")
         if trial > 0:
             true_states[trial, 0, :] = copy.deepcopy(state[trial - 1, 3, :])
 
@@ -301,7 +302,7 @@ for sim_id in range(1, NUM_SIMULATIONS + 1):
 
             obs = get_obs(trial, t, state)
             ainf_agent.observations[trial, t, :] = np.array(obs)
-            ainf_agent.default_infer_states(trial, t)
+            ainf_agent.infer_states(trial, t)
             G_policies, F_policies = ainf_agent.infer_policies(trial, t)
             mod_averages = ainf_agent.perform_modal_average(trial, t)
             chosen_action, _ = ainf_agent.choose_action(trial, t)
@@ -351,6 +352,6 @@ for sim_id in range(1, NUM_SIMULATIONS + 1):
         "model_averages": mod_averages
     }
 
-    save_path = os.path.join(save_dir, f"HRC_simulation_results_{sim_id}.npy")
+    save_path = os.path.join(save_dir, f"aleotric_simulation_results_{sim_id}.npy")
     np.save(save_path, data)
     print(f"Simulation {sim_id} saved to {save_path}")
