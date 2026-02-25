@@ -32,6 +32,31 @@ def uniform_A_matrix(num_obs, num_states):
 
     return A
 
+def zeros_A_matrix(num_obs, num_states):
+    """
+    Creates an A matrix (likelihood) filled with zeros for active inference.
+    
+    Args:
+        num_obs (int or list[int]): Observation dimensions  
+        num_states (int or list[int]): Hidden state dimensions
+    
+    Returns:
+        np.ndarray: NumPy object array of A matrices, one per modality
+    """
+    if isinstance(num_obs, int):
+        num_obs = [num_obs]
+    if isinstance(num_states, int):
+        num_states = [num_states]
+
+    num_modalities = len(num_obs)
+    A = obj_array(num_modalities)  # Assuming obj_array is defined elsewhere
+
+    for m, modality_obs in enumerate(num_obs):
+        shape = (modality_obs, *num_states)
+        A[m] = np.zeros(shape, dtype=np.float32)
+
+    return A
+
 def uniform_B_matrix(num_states, num_controls):
     """
     Creates a uniform B matrix (transition probabilities).
@@ -56,6 +81,33 @@ def uniform_B_matrix(num_states, num_controls):
     for f in range(num_factors):
         shape = (num_states[f], num_states[f], num_controls[f])
         B[f] = np.full(shape, 1.0 / num_states[f], dtype=np.float32)
+
+    return B
+
+def zeros_B_matrix(num_states, num_controls):
+    """
+    Creates a B matrix with all zeros (transition probabilities).
+
+    Args:
+        num_states (int or list[int]): Hidden states dimentions
+        num_controls (int or list[int]): Number of actions per hidden state factor
+
+    Returns:
+        np.ndarray: NumPy object array of B matrices, one per hidden state factor
+    """
+    if isinstance(num_states, int):
+        num_states = [num_states]
+    if isinstance(num_controls, int):
+        num_controls = [num_controls]
+
+    num_factors = len(num_states)
+    assert len(num_controls) == num_factors, "num_controls must match num_states length"
+
+    B = obj_array(num_factors)
+
+    for f in range(num_factors):
+        shape = (num_states[f], num_states[f], num_controls[f])
+        B[f] = np.zeros(shape, dtype=np.float32)
 
     return B
 

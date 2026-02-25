@@ -12,6 +12,7 @@ import multiprocessing
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import shared_memory
+from itertools import chain
 
 EPS_VAL = 1e-16 # global constant for use in spm_log() function
 
@@ -323,125 +324,167 @@ class ActiveInfAgent:
     
     def __init__(
         self, A, B, states_dim, obs_dim, controls_dim, controlable_states,
-        trial_length=1, number_of_msg_passing = 100, learning_rate = 0.2,
+        planning_depth=1, number_of_msg_passing = 100, learning_rate = 0.2,
         forgeting_rate = 0.99, trials = 100, alpha = 512, zeta = 0.01, timeconst = 1, D=None,
-        C=None, E=None, policies=False, policy_pruning = False,
-        learning_D = False, learning_A = False, learning_B = False, learning_E = False, learning_C = False
+        C=None, E=None, policies=False, policy_pruning = False, learning_D = False, learning_A = False,
+        learning_B = False, learning_E = False, learning_C = False, B_factor_list = None
+
     ):
-        # Construct policies
-        if policies == False:
-            self.policies = utils.construct_policies(states_dim, controls_dim, trial_length-1, controlable_states)
+        if planning_depth > 1:
+            self.deep_inference = True
         else:
-            self.policies = policies        
-        self.policy_pruning = policy_pruning
-        self.num_factors = len(states_dim)
-        self.num_modalities = len(obs_dim)
-        self.num_policies = len(self.policies)
-        self.states_dim = states_dim
-        self.obs_dim = obs_dim
-        self.controls_dim = controls_dim
-        self.num_trials = trials
-        self.pA = A
-        self.pA_0 = copy.deepcopy(self.pA)
-        self.pA_prior = copy.deepcopy(self.pA)
-        self.pA_complexity = copy.deepcopy(self.pA)
-        self.pB = B
-        self.pB_0 = copy.deepcopy(self.pB)
-        self.pB_prior = copy.deepcopy(self.pB)
-        self.pB_complexity = copy.deepcopy(self.pB)
-        self.pD = D
-        self.pD_0 = copy.deepcopy(self.pD)
-        self.pD_prior = copy.deepcopy(self.pD)
-        self.pD_complexity = copy.deepcopy(self.pD)
-        self.pE = E if E else self.create_object_tensor('ones', 1, last_dim = [len(self.policies)])
-        self.pE_0 = copy.deepcopy(self.pE)
-        self.pC = C
-        self.pC_0 = copy.deepcopy(self.pC)
-        for num_el in range(len(C)):
-            self.pC[num_el] += 1/32 
-        
-        # Store the shared memory objects and their info
-        self.A_shm = None
-        self.A_shm_info = None # Stores {name: '...', metadata: [...]}
-        self.B_shm = None
-        self.B_shm_info = None
-        self.D_shm = None
-        self.D_shm_info = None
-        self.E_shm = None
-        self.E_shm_info = None
-        self.C_shm = None
-        self.C_shm_info = None
-        self.policies_shm = None
-        self.policies_shm_info = None
-        self.policy_dep_posteriors_shm = None
-        self.policy_dep_posteriors_shm_info = None
+            self.deep_inference = False
 
-        self.temporal_horizon = trial_length
-        self.controlable_states = controlable_states
-        self.number_of_msg_passing = number_of_msg_passing
-        self.learning_rate = learning_rate
-        self.forgeting_rate = forgeting_rate
-        self.policy_dep_posteriors = None #self.create_object_tensor(last_dim=self.states_dim)
-        #self.joint_policy_dep_posteriors = self.create_object_tensor('zeros', len(self.policies), self.temporal_horizon)
-        self.posterior_pi = None #self.create_object_tensor('uniform', len(self.policies), self.temporal_horizon)
-        self.action_posteriors = None #self.create_object_tensor('zeros', self.num_factors, self.temporal_horizon - 1)
-        #for factor_idx in range(self.num_factors):
-            #if controls_dim[factor_idx] == 1:
-                #self.action_posteriors[factor_idx, :] = np.ones([1, self.temporal_horizon - 1])
-        self.observations = self.create_object_tensor('NaN', self.num_trials, self.temporal_horizon, self.num_modalities)
-        self.bayesian_mod_avg = self.create_object_tensor('zeros', self.num_trials, self.temporal_horizon, self.num_factors, last_dim=self.states_dim)
-        self.Fd = self.create_object_tensor('zeros', 1, last_dim = [self.num_factors])
-        self.Fb = copy.deepcopy(self.Fd)
-        self.Fa = self.create_object_tensor('zeros', 1, last_dim = [self.num_modalities])
-        self.Fe = 0
-        self.alpha = alpha
-        self.zeta = zeta
-        #self.action_selection = "deterministic" # use "stochastic" for action selection with some randomness
-        #self.action_selection = "random"
-        self.action_selection = "marginal" # use "stochastic" for action selection with some randomness
-        
-        self.timeconst = timeconst #time constant for gradient descent
-        self.gamma_0 = None
-        self.posterior_beta = None
-        self.total_dop_res = self.number_of_msg_passing * self.temporal_horizon
-        #self.gamma_update = self.create_object_tensor('zeros', self.num_trials, self.total_dop_res)
+        if self.deep_inference:
+            # Construct policies
+            if policies == False:
+                self.policies = utils.construct_policies(states_dim, controls_dim, planning_depth-1, controlable_states)
+            else:
+                self.policies = policies        
+            self.policy_pruning = policy_pruning
+            self.num_factors = len(states_dim)
+            self.num_modalities = len(obs_dim)
+            self.num_policies = len(self.policies)
+            self.states_dim = states_dim
+            self.obs_dim = obs_dim
+            self.controls_dim = controls_dim
+            self.num_trials = trials
+            self.pA = A
+            self.pA_0 = copy.deepcopy(self.pA)
+            self.pA_prior = copy.deepcopy(self.pA)
+            self.pA_complexity = copy.deepcopy(self.pA)
+            self.pB = B
+            self.pB_0 = copy.deepcopy(self.pB)
+            self.pB_prior = copy.deepcopy(self.pB)
+            self.pB_complexity = copy.deepcopy(self.pB)
+            self.pD = D
+            self.pD_0 = copy.deepcopy(self.pD)
+            self.pD_prior = copy.deepcopy(self.pD)
+            self.pD_complexity = copy.deepcopy(self.pD)
+            self.pE = E if E else self.create_object_tensor('ones', 1, last_dim = [len(self.policies)])
+            self.pE_0 = copy.deepcopy(self.pE)
+            self.pC = C
+            self.pC_0 = copy.deepcopy(self.pC)
+            for num_el in range(len(C)):
+                self.pC[num_el] += 1/32 
+            
+            # Store the shared memory objects and their info
+            self.A_shm = None
+            self.A_shm_info = None # Stores {name: '...', metadata: [...]}
+            self.B_shm = None
+            self.B_shm_info = None
+            self.D_shm = None
+            self.D_shm_info = None
+            self.E_shm = None
+            self.E_shm_info = None
+            self.C_shm = None
+            self.C_shm_info = None
+            self.policies_shm = None
+            self.policies_shm_info = None
+            self.policy_dep_posteriors_shm = None
+            self.policy_dep_posteriors_shm_info = None
 
-        self.learning_A = learning_A
-        self.learning_B = learning_B
-        self.learning_E = learning_E
-        self.learning_D = learning_D
-        self.learning_C = learning_C
+            self.temporal_horizon = planning_depth
+            self.controlable_states = controlable_states
+            self.number_of_msg_passing = number_of_msg_passing
+            self.learning_rate = learning_rate
+            self.forgeting_rate = forgeting_rate
+            self.policy_dep_posteriors = None #self.create_object_tensor(last_dim=self.states_dim)
+            #self.joint_policy_dep_posteriors = self.create_object_tensor('zeros', len(self.policies), self.temporal_horizon)
+            self.posterior_pi = None #self.create_object_tensor('uniform', len(self.policies), self.temporal_horizon)
+            self.action_posteriors = None #self.create_object_tensor('zeros', self.num_factors, self.temporal_horizon - 1)
+            #for factor_idx in range(self.num_factors):
+                #if controls_dim[factor_idx] == 1:
+                    #self.action_posteriors[factor_idx, :] = np.ones([1, self.temporal_horizon - 1])
+            self.observations = self.create_object_tensor('NaN', self.num_trials, self.temporal_horizon, self.num_modalities)
+            self.bayesian_mod_avg = self.create_object_tensor('zeros', self.num_trials, self.temporal_horizon, self.num_factors, last_dim=self.states_dim)
+            self.Fd = self.create_object_tensor('zeros', 1, last_dim = [self.num_factors])
+            self.Fb = copy.deepcopy(self.Fd)
+            self.Fa = self.create_object_tensor('zeros', 1, last_dim = [self.num_modalities])
+            self.Fe = 0
+            self.alpha = alpha
+            self.zeta = zeta
+            #self.action_selection = "deterministic" # use "stochastic" for action selection with some randomness
+            #self.action_selection = "random"
+            self.action_selection = "marginal" # use "stochastic" for action selection with some randomness
+            
+            self.timeconst = timeconst #time constant for gradient descent
+            self.gamma_0 = None
+            self.posterior_beta = None
+            self.total_dop_res = self.number_of_msg_passing * self.temporal_horizon
+            #self.gamma_update = self.create_object_tensor('zeros', self.num_trials, self.total_dop_res)
 
-        self.previous_lr = copy.deepcopy(self.learning_rate)
+            self.learning_A = learning_A
+            self.learning_B = learning_B
+            self.learning_E = learning_E
+            self.learning_D = learning_D
+            self.learning_C = learning_C
+
+            self.previous_lr = copy.deepcopy(self.learning_rate)
+
+
+        else:
+            #performs shallow inference
+
+            self.policies = utils.construct_policies(states_dim, controls_dim, 1, controlable_states)
+
+            self.num_factors = len(states_dim)
+            self.num_modalities = len(obs_dim)
+            self.states_dim = states_dim
+            self.obs_dim = obs_dim
+            self.controls_dim = controls_dim
+            self.num_trials = trials
+            self.num_iterations = number_of_msg_passing
+
+            self.pA = A
+            self.pB = B
+            self.pC = C
+            for num_el in range(len(C)):
+                self.pC[num_el] += 1/32 
+            self.pD = D
+
+            self.learning_A = learning_A
+            self.learning_B = learning_B
+            self.learning_E = learning_E
+            self.learning_D = learning_D
+            self.learning_C = learning_C
+
+            self.B_factor_list = B_factor_list 
+
 
     def initialize_variables(self):
-        self.policy_dep_posteriors = self.create_object_tensor(last_dim=self.states_dim)
-        #self.single_policy_dep_posteriors = copy.deepcopy(self.policy_dep_posteriors[0,:,:])       
-        self.posterior_pi = self.create_object_tensor('zeros', self.temporal_horizon, last_dim = [len(self.policies)])
-        #self.posterior_updates = self.create_object_tensor('NaN', self.total_dop_res, last_dim = [len(self.policies)])
-        self.prior_pi = self.create_object_tensor('zeros', self.temporal_horizon, last_dim = [len(self.policies)])
-        self.action_posteriors = self.create_object_tensor('zeros', self.num_factors, self.temporal_horizon - 1)       
-        #self.action_confidance = self.create_object_tensor('ones', self.temporal_horizon - 1, self.num_factors, last_dim=self.controls_dim)
-        #self.vfe_ft = self.create_object_tensor('zeros', len(self.policies), self.temporal_horizon, self.number_of_msg_passing, self.temporal_horizon, self.num_factors)
-        #self.normalized_firing_rates = self.create_object_tensor('NaN', len(self.policies), self.temporal_horizon, self.temporal_horizon, self.number_of_msg_passing, last_dim=self.states_dim)
-        #self.prediction_error = self.create_object_tensor('NaN', len(self.policies), self.temporal_horizon, self.temporal_horizon, self.num_factors)
-        self.F_policy = self.create_object_tensor('zeros', self.temporal_horizon, last_dim = [len(self.policies)])
-        self.G_policy = self.create_object_tensor('zeros', self.temporal_horizon, last_dim = [len(self.policies)])
-        self.disparity_nu = self.create_object_tensor('zeros', self.temporal_horizon, self.num_modalities, last_dim = self.obs_dim) 
-        self.chosen_policy = self.create_object_tensor('NaN', self.temporal_horizon) 
-        self.expected_obs_chosen = self.create_object_tensor('NaN', self.temporal_horizon, self.num_modalities, last_dim=self.obs_dim)
-        
-        self.gamma = self.create_object_tensor('NaN', self.temporal_horizon) 
-        self.beta_posterior = 1
-        self.beta_prior = 1
-        self.gamma[0] = 1/self.beta_posterior
+        if self.deep_inference:
+            self.policy_dep_posteriors = self.create_object_tensor(last_dim=self.states_dim)
+            #self.single_policy_dep_posteriors = copy.deepcopy(self.policy_dep_posteriors[0,:,:])       
+            self.posterior_pi = self.create_object_tensor('zeros', self.temporal_horizon, last_dim = [len(self.policies)])
+            #self.posterior_updates = self.create_object_tensor('NaN', self.total_dop_res, last_dim = [len(self.policies)])
+            self.prior_pi = self.create_object_tensor('zeros', self.temporal_horizon, last_dim = [len(self.policies)])
+            self.action_posteriors = self.create_object_tensor('zeros', self.num_factors, self.temporal_horizon - 1)       
+            #self.action_confidance = self.create_object_tensor('ones', self.temporal_horizon - 1, self.num_factors, last_dim=self.controls_dim)
+            #self.vfe_ft = self.create_object_tensor('zeros', len(self.policies), self.temporal_horizon, self.number_of_msg_passing, self.temporal_horizon, self.num_factors)
+            #self.normalized_firing_rates = self.create_object_tensor('NaN', len(self.policies), self.temporal_horizon, self.temporal_horizon, self.number_of_msg_passing, last_dim=self.states_dim)
+            #self.prediction_error = self.create_object_tensor('NaN', len(self.policies), self.temporal_horizon, self.temporal_horizon, self.num_factors)
+            self.F_policy = self.create_object_tensor('zeros', self.temporal_horizon, last_dim = [len(self.policies)])
+            self.G_policy = self.create_object_tensor('zeros', self.temporal_horizon, last_dim = [len(self.policies)])
+            self.disparity_nu = self.create_object_tensor('zeros', self.temporal_horizon, self.num_modalities, last_dim = self.obs_dim) 
+            self.chosen_policy = self.create_object_tensor('NaN', self.temporal_horizon) 
+            self.expected_obs_chosen = self.create_object_tensor('NaN', self.temporal_horizon, self.num_modalities, last_dim=self.obs_dim)
+            
+            self.gamma = self.create_object_tensor('NaN', self.temporal_horizon) 
+            self.beta_posterior = 1
+            self.beta_prior = 1
+            self.gamma[0] = 1/self.beta_posterior
+        else:
+            self.posteriors = self.create_object_tensor('uniform', self.num_factors, last_dim=self.states_dim)
+            self.action_posteriors = self.create_object_tensor('zeros', self.num_factors)
 
 
     def normalize_columns(self):
         self.A = self._normalize_colums(self.pA)
         self.B = self._normalize_colums(self.pB)
         self.D = self._normalize_colums(self.pD)
-        self.E = self._normalize_colums(self.pE)
+        if self.deep_inference:
+            self.E = self._normalize_colums(self.pE)
         self.C = self.softmax_whole(self.pC)
         for modality_idx in range(self.num_modalities):
             self.C[modality_idx] = self.log_stable(self.C[modality_idx])
@@ -686,77 +729,127 @@ class ActiveInfAgent:
             self.policy_dep_posteriors[result_policy_idx,:,:] = result_state_posteriors
             self.F_policy[result_t][result_policy_idx] = result_policy_F
 
-    def infer_states(self, trial, t): #implimentation of the MMP
+    def infer_states(self, trial, t, obs=None, dF_tol=1e-4): 
+        
+        if self.deep_inference:
+            #implimentation of the MMP
 
-        #@NOTE: Policy_pruning functionality needs to be debugged.
-        if self.policy_pruning:
-            if t > 0:
-                temp_F = np.array(np.log(self.posterior_pi[t-1][:]))
-                mask = (temp_F - np.max(temp_F)) > -self.zeta
-                self.policies = [p for p, m in zip(self.policies, mask) if m]
+            #@NOTE: Policy_pruning functionality needs to be debugged.
+            if self.policy_pruning:
+                if t > 0:
+                    temp_F = np.array(np.log(self.posterior_pi[t-1][:]))
+                    mask = (temp_F - np.max(temp_F)) > -self.zeta
+                    self.policies = [p for p, m in zip(self.policies, mask) if m]
 
-        for policy_idx, policy in enumerate(self.policies):
-            depolarization = None
-            F = None
-            for nmp in range(self.number_of_msg_passing):  # Number of gradient descent iterations
-                previous_F = copy.deepcopy(F)
-                self.F_policy[t][policy_idx] = previous_F
-                F = 0
+            self.model_evd = 0
+            for policy_idx, policy in enumerate(self.policies):
+                depolarization = None
+                F = None
+                for nmp in range(self.number_of_msg_passing):  # Number of gradient descent iterations
+                    previous_F = copy.deepcopy(F)
+                    self.F_policy[t][policy_idx] = previous_F
+                    F = 0
+                    for factor in range(self.num_factors):
+                        for tau in range(self.temporal_horizon):
+                            third_msg = self.create_object_tensor('zeros', 1, last_dim=self.states_dim[factor])
+                            #previous_policy_dep_posteriors = copy.deepcopy(self.policy_dep_posteriors[policy_idx, tau, factor])       
+                            depolarization = self.log_stable(self.policy_dep_posteriors[policy_idx, tau, factor])
+                            if tau <= t:
+                                # Third message
+                                third_msg = self.expected_log_likelihood_einsum(self.observations[trial, tau, :], factor, policy_idx, tau)
+                            
+                            if tau == 0:
+                                # First message
+                                first_msg = self.log_stable(self.D[factor])
+                                # Second message
+                                action_tau = policy[tau, :]
+                                qs_future = self.policy_dep_posteriors[policy_idx, tau+1, factor]
+                                transposed_B = self.transpose_Bfa(self.B[factor][:, :, action_tau[factor]])
+                                second_msg = self.log_stable(transposed_B.dot(qs_future))
+                            
+                            elif tau == self.temporal_horizon-1:
+                                # First message
+                                actions_tau_1 = policy[tau-1, :]
+                                qs_prev = self.policy_dep_posteriors[policy_idx, tau-1, factor]
+                                first_msg = self.log_stable(self.B[factor][:, :, actions_tau_1[factor]].dot(qs_prev))
+                                # Second message
+                                second_msg = np.zeros((self.D[factor]).shape)
+                            else:
+                                # First message
+                                actions_tau_1 = policy[tau-1, :]
+                                qs_prev = self.policy_dep_posteriors[policy_idx, tau-1, factor]
+                                first_msg = self.log_stable(self.B[factor][:, :, actions_tau_1[factor]].dot(qs_prev))
+                                # Second message
+                                action_tau = policy[tau, :]
+                                qs_future = self.policy_dep_posteriors[policy_idx, tau+1, factor]
+                                transposed_B = self.transpose_Bfa(self.B[factor][:, :, action_tau[factor]])
+                                second_msg = self.log_stable(transposed_B.dot(qs_future))
+
+                            # Compute state prediction error
+                            state_pred_err = 0.5*(first_msg + second_msg) + third_msg - depolarization
+                            depolarization += state_pred_err/self.timeconst
+                            
+                
+                            #@NOTE equation of F in tbl 2 on page 19 of the paper and MATLAB line of code for this is different.
+                            # Following is the implimentation from the MATLAB.
+                            Fintermediate = (self.policy_dep_posteriors[policy_idx, tau, factor]).dot(-self.log_stable(self.policy_dep_posteriors[policy_idx, tau, factor]) + 0.5*(first_msg + second_msg) +third_msg)
+                            F += Fintermediate
+                            #self.vfe_ft[policy_idx, tau, nmp, t, factor] = Fintermediate
+                            
+                            self.policy_dep_posteriors[policy_idx, tau, factor] = self.softmax(np.array(depolarization))
+
+                            #self.posterior_entropy += -np.sum(self.policy_dep_posteriors[policy_idx, tau, factor] * self.log_stable(self.policy_dep_posteriors[policy_idx, tau, factor]))
+                            #count += 1
+        
+                    #Early stopping condition to exit gradient descent if minimum VFE reached!
+                    if nmp > 0 and previous_F is not None:
+                        if F - previous_F < np.exp(-8):
+                            #self.policy_dep_posteriors[policy_idx, tau, factor] = previous_policy_dep_posteriors
+                            self.F_policy[t][policy_idx] = previous_F
+                            break
+
+            #self.posterior_entropy = self.posterior_entropy / count
+            self.model_evd = np.max(self.F_policy[t]) / (np.prod(self.states_dim)*self.temporal_horizon)
+
+        else:
+                qs_prev = copy.deepcopy(self.posteriors)
+                log_likelihoods_per_factor = []
                 for factor in range(self.num_factors):
-                    for tau in range(self.temporal_horizon):
-                        third_msg = self.create_object_tensor('zeros', 1, last_dim=self.states_dim[factor])
-                        #previous_policy_dep_posteriors = copy.deepcopy(self.policy_dep_posteriors[policy_idx, tau, factor])       
-                        depolarization = self.log_stable(self.policy_dep_posteriors[policy_idx, tau, factor])
-                        if tau <= t:
-                            # Third message
-                            third_msg = self.expected_log_likelihood_einsum(self.observations[trial, tau, :], factor, policy_idx, tau)
-                        
-                        if tau == 0:
-                            # First message
-                            first_msg = self.log_stable(self.D[factor])
-                            # Second message
-                            action_tau = policy[tau, :]
-                            qs_future = self.policy_dep_posteriors[policy_idx, tau+1, factor]
-                            transposed_B = self.transpose_Bfa(self.B[factor][:, :, action_tau[factor]])
-                            second_msg = self.log_stable(transposed_B.dot(qs_future))
-                        
-                        elif tau == self.temporal_horizon-1:
-                            # First message
-                            actions_tau_1 = policy[tau-1, :]
-                            qs_prev = self.policy_dep_posteriors[policy_idx, tau-1, factor]
-                            first_msg = self.log_stable(self.B[factor][:, :, actions_tau_1[factor]].dot(qs_prev))
-                            # Second message
-                            second_msg = np.zeros((self.D[factor]).shape)
-                        else:
-                            # First message
-                            actions_tau_1 = policy[tau-1, :]
-                            qs_prev = self.policy_dep_posteriors[policy_idx, tau-1, factor]
-                            first_msg = self.log_stable(self.B[factor][:, :, actions_tau_1[factor]].dot(qs_prev))
-                            # Second message
-                            action_tau = policy[tau, :]
-                            qs_future = self.policy_dep_posteriors[policy_idx, tau+1, factor]
-                            transposed_B = self.transpose_Bfa(self.B[factor][:, :, action_tau[factor]])
-                            second_msg = self.log_stable(transposed_B.dot(qs_future))
+                    log_likelihoods_per_factor.append(
+                        self.expected_log_likelihood_einsum(obs, factor)
+                    )
+                # Fixed-point iteration
+                curr_iter = 0
+                dF = np.inf
+                previous_vfe = np.inf  # start high
+                while curr_iter < self.num_iterations and dF >= dF_tol:
+                    free_energy = 0
+                    factor_orders = [range(self.num_factors), range(self.num_factors - 1, -1, -1)]
+                    for order in factor_orders:
+                        for factor in order:
+                            log_likelihoods = log_likelihoods_per_factor[factor]
+                            log_prior = self.log_stable(qs_prev[factor])
+                            if t == 0:
+                                log_prior = self.log_stable(self.D[factor])
+                            weighted_lik = log_prior +log_likelihoods
+                            self.posteriors[factor] = self.softmax(weighted_lik)
 
-                        # Compute state prediction error
-                        state_pred_err = 0.5*(first_msg + second_msg) + third_msg - depolarization
-                        depolarization += state_pred_err/self.timeconst
-                        
-               
-                        #@NOTE equation of F in tbl 2 on page 19 of the paper and MATLAB line of code for this is different.
-                        # Following is the implimentation from the MATLAB.
-                        Fintermediate = (self.policy_dep_posteriors[policy_idx, tau, factor]).dot(-self.log_stable(self.policy_dep_posteriors[policy_idx, tau, factor]) + 0.5*(first_msg + second_msg) +third_msg)
-                        F += Fintermediate
-                        #self.vfe_ft[policy_idx, tau, nmp, t, factor] = Fintermediate
-                        
-                        self.policy_dep_posteriors[policy_idx, tau, factor] = self.softmax(np.array(depolarization))
-      
-                #Early stopping condition to exit gradient descent if minimum VFE reached!
-                if nmp > 0 and previous_F is not None:
-                    if F - previous_F < np.exp(-8):
-                        #self.policy_dep_posteriors[policy_idx, tau, factor] = previous_policy_dep_posteriors
-                        self.F_policy[t][policy_idx] = previous_F
-                        break
+                    #calculate VFE for each factor to check for convergence
+                    for factor in range(self.num_factors):
+                        log_prior = self.log_stable(qs_prev[factor])
+                        if t == 0:
+                            log_prior = self.log_stable(self.D[factor])
+                        post_entropy = self.posteriors[factor].dot(self.log_stable(self.posteriors[factor]))
+                        prior_entropy = -self.posteriors[factor].dot(self.log_stable(log_prior))
+                        log_likelihoods = log_likelihoods_per_factor[factor]
+                        accuracy = self.posteriors[factor].dot(log_likelihoods)
+                        free_energy += post_entropy + prior_entropy - accuracy
+
+                    dF = np.abs(free_energy - previous_vfe)
+                    previous_vfe = free_energy
+                    curr_iter += 1
+
+
 
 
     
@@ -942,29 +1035,41 @@ class ActiveInfAgent:
         self.update_policy_posterior(trial, t)
         self._cleanup_shared_memory() # Main process still unlinks shared memory segments
         return copy.deepcopy(self.G_policy), copy.deepcopy(self.F_policy)
+    
+    def get_expected_states(self, policy):
+        # this function use during shallow inference
+        qs_fur = self.create_object_tensor('uniform', self.num_factors, last_dim=self.states_dim)
+        for cntrl_factor, action in enumerate(policy):
+            factor_idx = self.B_factor_list[cntrl_factor]
+            qs_fur[cntrl_factor] = np.multiply.outer(self.B[cntrl_factor][...,int(action)], self.posteriors[cntrl_factor])
 
+        return qs_fur
     
     def infer_policies(self, trial, t):
-        self.policy_dep_expected_obs = self.create_object_tensor('NaN', self.num_policies, self.temporal_horizon, self.num_modalities, last_dim=self.obs_dim)
-        for policy_idx in range(len(self.policies)):
-            info_gain_tot = 0
+        if self.deep_inference:
+            self.policy_dep_expected_obs = self.create_object_tensor('NaN', self.num_policies, self.temporal_horizon, self.num_modalities, last_dim=self.obs_dim)
+            for policy_idx in range(len(self.policies)):
+                info_gain_tot = 0
 
-            #epistemic value term (Bayesian surprise)
-            ambiguity_term = self.calculate_policy_ambiguity(t, policy_idx)
-            risk_term = self.calculate_policy_risk(t, policy_idx)
-            if self.learning_D:
-                info_gain_tot += self.calculate_pD_info_gain(policy_idx) 
-            if self.learning_A:
-                info_gain_tot += self.calculate_pA_info_gain(t, policy_idx)
-            if self.learning_B:
-                info_gain_tot += self.calculate_pB_info_gain_vectorized(t, policy_idx)
+                #epistemic value term (Bayesian surprise)
+                ambiguity_term = self.calculate_policy_ambiguity(t, policy_idx)
+                risk_term = self.calculate_policy_risk(t, policy_idx)
+                if self.learning_D:
+                    info_gain_tot += self.calculate_pD_info_gain(policy_idx) 
+                if self.learning_A:
+                    info_gain_tot += self.calculate_pA_info_gain(t, policy_idx)
+                if self.learning_B:
+                    info_gain_tot += self.calculate_pB_info_gain_vectorized(t, policy_idx)
 
-            #if self.learning_E:
-            #    info_gain_tot += self.calculate_pE_info_gain(policy_idx)
-            self.G_policy[t][policy_idx] += risk_term + ambiguity_term -info_gain_tot
+                #if self.learning_E:
+                #    info_gain_tot += self.calculate_pE_info_gain(policy_idx)
+                self.G_policy[t][policy_idx] += risk_term + ambiguity_term -info_gain_tot
 
-        self.update_policy_posterior(trial, t)
-        return self.G_policy, self.F_policy
+            self.update_policy_posterior(trial, t)
+        else:
+            for policy_idx, policy in enumerate(self.policies):
+                wt = self.get_expected_states(policy[0])
+        return self.G_policy, self.F_policy, self.model_evd
 
     '''
     def calculate_pE_info_gain(self, policy_idx):
@@ -1158,10 +1263,30 @@ class ActiveInfAgent:
         return risk_term_policy
     
     def cell_md_dot_py(self, X, x):
+        # use this for observation prediction only
         p = X.copy()
         for f in reversed(range(len(x))):
             p = np.tensordot(p, x[f], axes=(f + 1, 0))
         return p
+    
+    def spm_dot(self, X, x):
+
+        dims = list(range(1, len(x) + 1))
+
+        arg_list = (
+            [X, list(range(X.ndim))]
+            + list(chain(*([x[i], [dims[i]]] for i in range(len(x)))))
+            + [[0]]
+        )
+
+        Y = np.einsum(*arg_list)
+
+        if np.prod(Y.shape) <= 1:
+            Y = np.array([Y.item()], dtype="float64")
+
+        return Y
+
+
     
     def cell_md_dot(self, X, x):
         # Initialize the dimensions to sum over
@@ -1606,44 +1731,79 @@ class ActiveInfAgent:
                 log_likelihoods += lnA
         return log_likelihoods
     
-    def expected_log_likelihood_einsum(self, obs, factor, policy_idx, tau):
+    def expected_log_likelihood_einsum(self, obs, factor, policy_idx=0, tau=0):
         """
         Calculates the expected log-likelihood for a factor using np.einsum.
         This is more efficient as it avoids creating intermediate arrays.
         """
-        # Initialize with zeros for the states of the target factor
-        log_likelihoods = np.zeros(self.states_dim[factor])
-        
-        # Pre-fetch the posteriors that will be used for marginalization
-        posteriors_to_marginalize = [
-            self.policy_dep_posteriors[policy_idx, tau, f] 
-            for f in range(self.num_factors) if f != factor
-        ]
+        if self.deep_inference:
+            # Initialize with zeros for the states of the target factor
+            log_likelihoods = np.zeros(self.states_dim[factor])
+            
+            # Pre-fetch the posteriors that will be used for marginalization
+            posteriors_to_marginalize = [
+                self.policy_dep_posteriors[policy_idx, tau, f] 
+                for f in range(self.num_factors) if f != factor
+            ]
 
-        if obs is not None:
-            for modal_idx, modality in enumerate(self.A):
-                # Get the log-likelihood slice for the current observation
-                # This is a tensor with dimensions for each state factor
-                lnA = self.log_stable(np.take(modality, obs[modal_idx], axis=0))
+            if obs is not None:
+                for modal_idx, modality in enumerate(self.A):
+                    # Get the log-likelihood slice for the current observation
+                    # This is a tensor with dimensions for each state factor
+                    lnA = self.log_stable(np.take(modality, obs[modal_idx], axis=0))
 
-                # Dynamically create the einsum string
-                # e.g., for 3 factors and target factor 0: 'ijk,j,k->i'
-                alphabet = string.ascii_lowercase
-                all_factors_str = alphabet[:self.num_factors]
-                # This part needs to list each individual posterior's dimension
-                # For 'b,c,d,e,f' each letter is a separate operand in the string
-                other_factors_dims = [alphabet[f] for f in range(self.num_factors) if f != factor]
-                
-                if other_factors_dims: # Check if there are other factors to marginalize
-                    other_factors_str = ",".join(other_factors_dims)
-                    einsum_str = f'{all_factors_str},{other_factors_str}->{alphabet[factor]}'
-                else: # No other factors to marginalize (e.g., when num_factors is 1)
-                    einsum_str = f'{all_factors_str}->{alphabet[factor]}'
-                
-                # Perform the entire marginalization in one step
-                expected_lnA = np.einsum(einsum_str, lnA, *posteriors_to_marginalize)
-                
-                log_likelihoods += expected_lnA
+                    # Dynamically create the einsum string
+                    # e.g., for 3 factors and target factor 0: 'ijk,j,k->i'
+                    alphabet = string.ascii_lowercase
+                    all_factors_str = alphabet[:self.num_factors]
+                    # This part needs to list each individual posterior's dimension
+                    # For 'b,c,d,e,f' each letter is a separate operand in the string
+                    other_factors_dims = [alphabet[f] for f in range(self.num_factors) if f != factor]
+                    
+                    if other_factors_dims: # Check if there are other factors to marginalize
+                        other_factors_str = ",".join(other_factors_dims)
+                        einsum_str = f'{all_factors_str},{other_factors_str}->{alphabet[factor]}'
+                    else: # No other factors to marginalize (e.g., when num_factors is 1)
+                        einsum_str = f'{all_factors_str}->{alphabet[factor]}'
+                    
+                    # Perform the entire marginalization in one step
+                    expected_lnA = np.einsum(einsum_str, lnA, *posteriors_to_marginalize)
+                    
+                    log_likelihoods += expected_lnA
+        else:
+            # Initialize with zeros for the states of the target factor
+            log_likelihoods = np.zeros(self.states_dim[factor])
+            
+            # Pre-fetch the posteriors that will be used for marginalization
+            posteriors_to_marginalize = [
+                self.posteriors[f] 
+                for f in range(self.num_factors) if f != factor
+            ]
+
+            if obs is not None:
+                for modal_idx, modality in enumerate(self.A):
+                    # Get the log-likelihood slice for the current observation
+                    # This is a tensor with dimensions for each state factor
+                    lnA = self.log_stable(np.take(modality, obs[modal_idx], axis=0))
+
+                    # Dynamically create the einsum string
+                    # e.g., for 3 factors and target factor 0: 'ijk,j,k->i'
+                    alphabet = string.ascii_lowercase
+                    all_factors_str = alphabet[:self.num_factors]
+                    # This part needs to list each individual posterior's dimension
+                    # For 'b,c,d,e,f' each letter is a separate operand in the string
+                    other_factors_dims = [alphabet[f] for f in range(self.num_factors) if f != factor]
+                    
+                    if other_factors_dims: # Check if there are other factors to marginalize
+                        other_factors_str = ",".join(other_factors_dims)
+                        einsum_str = f'{all_factors_str},{other_factors_str}->{alphabet[factor]}'
+                    else: # No other factors to marginalize (e.g., when num_factors is 1)
+                        einsum_str = f'{all_factors_str}->{alphabet[factor]}'
+                    
+                    # Perform the entire marginalization in one step
+                    expected_lnA = np.einsum(einsum_str, lnA, *posteriors_to_marginalize)
+                    
+                    log_likelihoods += expected_lnA
                 
         return log_likelihoods
             
@@ -1855,6 +2015,9 @@ class ActiveInfAgent:
                 y[idx] = self.log_beta(z[(slice(None),) + idx])  # Recursive computation
             
             return y
+        
+
+    
         
 def spm_psi(A):
     # This is the python implimentation of the Karl Friston's
