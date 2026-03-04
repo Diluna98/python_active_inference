@@ -149,15 +149,16 @@ def create_generative_model():
 
     D = utils.uniform_D_matrix(num_states)
 
+    Temp_horizon = 1
     C = utils.zero_C_matrix(num_obs, Temp_horizon)
     fill_C_exponential(C, modality=0, target_idx=45)
 
     fill_C_exponential(C, modality=1, target_idx=2)
     
-    C[2] = np.array([[0.0, 0.0, 0.0], #nothing
-                    [5.0, 5.0, 5.0], #perfect
-                    [1.0, 1.0, 1.0], #good
-                    [-1.0, -1.0, -1.0]])#bad
+    C[2] = np.array([[0.0], #nothing
+                    [5.0], #perfect
+                    [1.0], #good
+                    [-1.0]])#bad
     
 
     return A, B, C, D, num_states, num_obs, num_controls, control_fac_idx, Temp_horizon 
@@ -209,7 +210,7 @@ if __name__ == "__main__":
     NUM_SIMULATIONS = 1
     entropies = []
     latencies = []
-    model_size = 30    
+    model_size = 50    
 
     for sim_id in range(1, NUM_SIMULATIONS + 1):
         print(f"Running simulation {sim_id}...")
@@ -232,7 +233,8 @@ if __name__ == "__main__":
         ainf_agent = ActiveInfAgent(A=A, B=B, states_dim=num_states, obs_dim=num_obs, controls_dim=num_controls,
                                     controlable_states=control_fac_idx, planning_depth=Temp_horizon,
                                     number_of_msg_passing=30, trials=TRIALS, D=D, C=C,
-                                    policies=policies, policy_pruning=False, learning_A=False, learning_D=False, learning_B=False, learning_C=False)
+                                    policies=policies, policy_pruning=False, learning_A=True, learning_D=True,
+                                    learning_B=True, learning_C=False)
         
         env = GridEnvironment(size=model_size-5)
         for trial in range(TRIALS):
@@ -243,17 +245,13 @@ if __name__ == "__main__":
             ainf_agent.initialize_variables()
             done = False
             while not done:
-                obs = env.step(a_action)
-                ainf_agent.observations[trial, t, :] = np.array(obs)
-                ainf_agent.infer_states(trial, t)
-                _, _,entropy_t = ainf_agent.infer_policies(trial, t)
-                mod_averages = ainf_agent.perform_modal_average(trial, t)
+                ainf_agent.infer_states(trial, t, obs)
+                ainf_agent.infer_policies(trial, t)
                 chosen_action, action_list = ainf_agent.choose_action(trial, t)
-                #t_end = time.perf_counter()
-                #latencies.append(t_end - t_start)
                 if chosen_action is not None:
                     if chosen_action[2] == 1:
-                        selfmarked = True
+                        done = True
                     a_action = tuple(int(x) for x in chosen_action)
-            _, _, _, _, _, _ = ainf_agent.perform_learning(trial)
-            entropies.append(entropy_trial)
+                ainf_agent.perform_learning(trial, t)
+                obs = env.step(a_action)
+                t += 1
