@@ -137,8 +137,8 @@ def create_generative_model():
     control_fac_idx = [0, 1, 2]
     Temp_horizon = 3
 
-    goal_x = 45
-    goal_y = 2
+    goal_x = 45 #45
+    goal_y = 2 #2
     
     A = utils.zeros_A_matrix(num_obs, num_states)
     fill_modalities(num_states, num_obs, A, goal_x, goal_y)
@@ -150,9 +150,9 @@ def create_generative_model():
     D = utils.uniform_D_matrix(num_states)
 
     C = utils.zero_C_matrix(num_obs, Temp_horizon)
-    fill_C_exponential(C, modality=0, target_idx=45)
+    fill_C_exponential(C, modality=0, target_idx=goal_x)
 
-    fill_C_exponential(C, modality=1, target_idx=2)
+    fill_C_exponential(C, modality=1, target_idx=goal_y)
     
     C[2] = np.array([[0.0, 0.0, 0.0], #nothing
                     [5.0, 5.0, 5.0], #perfect
@@ -205,22 +205,22 @@ def filter_policies(data):
 
 if __name__ == "__main__":
 
-    TRIALS = 100
+    TRIALS = 10
     NUM_SIMULATIONS = 1
     entropies = []
     latencies = []
-    model_size = 30    
+    model_size = 55    
 
     for sim_id in range(1, NUM_SIMULATIONS + 1):
         print(f"Running simulation {sim_id}...")
         A, B, C, D, num_states, num_obs, num_controls, control_fac_idx, Temp_horizon = create_generative_model()
 
-        controllable_factors = [-1, -1, 2]
-        controllable_modalities = [-1, -1, 4]
-        bmr = BMRModule(num_states, num_obs, num_controls, Temp_horizon, controllable_factors,  controllable_modalities, A, B, C, D, minimum_dim = 5, E=None)
+        #controllable_factors = [-1, -1, 2]
+        #controllable_modalities = [-1, -1, 4]
+        #bmr = BMRModule(num_states, num_obs, num_controls, Temp_horizon, controllable_factors,  controllable_modalities, A, B, C, D, minimum_dim = 5, E=None)
 
-        A, B, C, D, num_states, num_obs = bmr.decrease_resolution(curren_dim=model_size)
-        fill_transitions(num_states, B)
+        #A, B, C, D, num_states, num_obs = bmr.decrease_resolution(curren_dim=model_size)
+        #fill_transitions(num_states, B)
         #waa, wbb, wcc, wdd = bmr.increase_resolution(curren_dim=50)
 
         #print(f"Reduced Shape: {reduced_5x5.shape}")
@@ -234,32 +234,24 @@ if __name__ == "__main__":
                                     policies=policies, policy_pruning=False, learning_A=False, learning_D=False, learning_B=False, learning_C=False)
         
         env = GridEnvironment(size=model_size-5)
-        obs = env.reset()
-        selfmarked = False
         for trial in range(TRIALS):
-            if selfmarked:
-                obs = env.reset()
-                selfmarked = False
+            obs, done = env.reset()
             ainf_agent.store_parameters()
             ainf_agent.normalize_columns()
             ainf_agent.initialize_variables()
-            
-            entropy_trial = 0
-            for t in range(Temp_horizon):
+            t = 0
+            while not done:
                 t_start = time.perf_counter()
-                if t != 0:
-                    obs = env.step(a_action)
-                ainf_agent.observations[trial, t, :] = np.array(obs)
+                ainf_agent.observations[t%Temp_horizon, :] = np.array(obs)
                 ainf_agent.infer_states(trial, t)
-                _, _,entropy_t = ainf_agent.infer_policies(trial, t)
-                entropy_trial += entropy_t
+                ainf_agent.infer_policies(trial, t)
                 mod_averages = ainf_agent.perform_modal_average(trial, t)
                 chosen_action, action_list = ainf_agent.choose_action(trial, t)
                 t_end = time.perf_counter()
                 latencies.append(t_end - t_start)
                 if chosen_action is not None:
-                    if chosen_action[2] == 1:
-                        selfmarked = True
                     a_action = tuple(int(x) for x in chosen_action)
-            _, _, _, _, _, _ = ainf_agent.perform_learning(trial)
-            entropies.append(entropy_trial)
+                    obs, done = env.step(a_action)
+                    if done:
+                        ainf_agent.perform_learning(trial)
+                t += 1

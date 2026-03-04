@@ -32,9 +32,10 @@ class GridEnvironment:
         self.current_position = self.start_position
         gridx, gridy = self.world_to_grid(self.current_position[0], self.current_position[1])
         feedback_id = 0
+        done = False
         
 
-        return (gridx, gridy, feedback_id)
+        return (gridx, gridy, feedback_id), done
 
 
     def is_neighbor(self, pos, goal):
@@ -97,7 +98,8 @@ class GridEnvironment:
         print(f"After action {action}, current position is {self.current_position} and feedback is {feedback}.")
 
         new_gridx, new_gridy = self.world_to_grid(new_x, new_y)
-        return (new_gridx, new_gridy, feedback_id)
+        done = mark_flag
+        return (new_gridx, new_gridy, feedback_id), done
 """
 # Example usage:
 if __name__ == "__main__":

@@ -8,15 +8,16 @@ import time
 ## Hidden state factors ##
 
 Current_Resolution: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
-Resource_Demand: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+Resource_Demand: 0, 1, 2, 3, 4
 """
 
 """
 ## observation modalities ##
 
-model_complexity: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
-model_accuracy: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
-computaional_cost: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+model_complexity: 0, 1, 2, 3, 4
+model_accuracy: 0, 1, 2, 3, 4
+convergence_steps: 0, 1, 2, 3, 4
+wall_clock_time: 0, 1, 2, 3, 4
 """
 
 """
