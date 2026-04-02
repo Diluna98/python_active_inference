@@ -1,7 +1,7 @@
 import numpy as np
 from PyAIF import utils, ActiveInfAgent
 from environment import GridEnvironment
-from BMR_module import BMRModule
+from BMR_module_new import BMRModule
 import matplotlib.pyplot as plt
 import time
 
@@ -131,13 +131,13 @@ def fill_C_exponential(C, modality, target_idx, peak=5.0, lam=0.05, floor=0.0):
 
 def create_generative_model():
 
-    num_obs = [50, 50, 4]
-    num_states = [50, 50, 2]
+    num_obs = [20, 20, 4]
+    num_states = [20, 20, 2]
     num_controls = [3, 3, 2]
     control_fac_idx = [0, 1, 2]
     Temp_horizon = 3
 
-    goal_x = 45 #45
+    goal_x = 4 #45
     goal_y = 2 #2
     
     A = utils.zeros_A_matrix(num_obs, num_states)
@@ -209,18 +209,18 @@ if __name__ == "__main__":
     NUM_SIMULATIONS = 1
     entropies = []
     latencies = []
-    model_size = 55    
+    model_size = 5    
 
     for sim_id in range(1, NUM_SIMULATIONS + 1):
         print(f"Running simulation {sim_id}...")
         A, B, C, D, num_states, num_obs, num_controls, control_fac_idx, Temp_horizon = create_generative_model()
 
-        #controllable_factors = [-1, -1, 2]
-        #controllable_modalities = [-1, -1, 4]
-        #bmr = BMRModule(num_states, num_obs, num_controls, Temp_horizon, controllable_factors,  controllable_modalities, A, B, C, D, minimum_dim = 5, E=None)
+        controllable_factors = [-1, -1, 2]
+        controllable_modalities = [-1, -1, 4]
+        bmr = BMRModule(num_states, num_obs, num_controls, Temp_horizon, controllable_factors,  controllable_modalities, A, B, C, D, minimum_dim = 5, E=None)
 
-        #A, B, C, D, num_states, num_obs = bmr.decrease_resolution(curren_dim=model_size)
-        #fill_transitions(num_states, B)
+        A, B, D, num_states, num_obs = bmr.decrease_resolution(curren_dim=model_size)
+        fill_transitions(num_states, B)
         #waa, wbb, wcc, wdd = bmr.increase_resolution(curren_dim=50)
 
         #print(f"Reduced Shape: {reduced_5x5.shape}")
@@ -228,21 +228,24 @@ if __name__ == "__main__":
 
         policies_to_filter = utils.construct_policies(num_states, num_controls, Temp_horizon-1, control_fac_idx)
         policies = filter_policies(policies_to_filter)
-        ainf_agent = ActiveInfAgent(A=A, B=B, states_dim=num_states, obs_dim=num_obs, controls_dim=num_controls,
+        ainf_agent = ActiveInfAgent(states_dim=num_states, obs_dim=num_obs, controls_dim=num_controls,
                                     controlable_states=control_fac_idx, planning_depth=Temp_horizon,
-                                    number_of_msg_passing=30, trials=TRIALS, D=D, C=C,
-                                    policies=policies, policy_pruning=False, learning_A=False, learning_D=False, learning_B=False, learning_C=False)
+                                    number_of_msg_passing=30, trials=TRIALS, A=A, B=B, C=C, D=D,
+                                    policies=policies, policy_pruning=False, learning_A=True, learning_D=True, learning_B=True, learning_C=True,
+                                    continous_obs=False, mod_dependency=[[0, 1, 2], [0, 1, 2], [0, 1, 2]])
         
-        env = GridEnvironment(size=model_size-5)
+        #env = GridEnvironment(size=model_size-5)
         for trial in range(TRIALS):
-            obs, done = env.reset()
+            #obs, done = env.reset()
+            obs = [0,0,0]
+            done = False
             ainf_agent.store_parameters()
             ainf_agent.normalize_columns()
             ainf_agent.initialize_variables()
             t = 0
             while not done:
                 t_start = time.perf_counter()
-                ainf_agent.observations[t%Temp_horizon, :] = np.array(obs)
+                ainf_agent.observations[t] = np.array(obs)
                 ainf_agent.infer_states(trial, t)
                 ainf_agent.infer_policies(trial, t)
                 mod_averages = ainf_agent.perform_modal_average(trial, t)
