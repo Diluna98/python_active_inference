@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import math
 
 class GridEnvironment:
-    def __init__(self, size, workspace_length=500, workspace_width=500, s_x=183, s_y=258, g_x=263, g_y=29, RSI=30, alpha=0.01):
+    def __init__(self, size, workspace_length=500, workspace_width=500, s_x=25/2, s_y=25/2, g_x=237.5, g_y=462.5, RSI=30, alpha=0.01):
         self.grid_size = size
         self.workspace_length = workspace_length
         self.workspace_width = workspace_width
@@ -18,7 +18,7 @@ class GridEnvironment:
         self.current_position = self.start_position
         
         self.current_position_grid = self._world_to_grid_continuous(*self.current_position)
-        self.obstacles = self._get_obstacles_dict()
+        self.obstacles = None#self._get_obstacles_dict()
 
 
         self.visualize = True  # Set to True to enable visualization
@@ -33,7 +33,9 @@ class GridEnvironment:
     
     def _get_obstacles_dict(self):
         obstacles_dict = {
-                0: [0, 395, 205, 245]    # obstacle 1: [x_min, x_max, y_min, y_max]
+                0: [0, 395, 255, 295],    # obstacle 1: [x_min, x_max, y_min, y_max]
+                #1: [0, 395, 305, 345],    # obstacle 2: [x_min, x_max, y_min, y_max]
+                #2: [455, 500, 255, 345]    # obstacle 3: [x_min, x_max, y_min, y_max]
             }
         return obstacles_dict
     
@@ -94,9 +96,12 @@ class GridEnvironment:
         self.fig, self.ax = plt.subplots(figsize=(6, 6))
         
         # Plot the static RSI map
-        self.im = self.ax.imshow(self.RSI_map.T, origin='lower',
-                                extent=[0, self.workspace_length, 0, self.workspace_width],
-                                aspect='auto')
+        self.im = self.ax.imshow(
+            self.RSI_map.T, 
+            origin='upper', 
+            extent=[0, self.workspace_length, self.workspace_width, 0], # Y is [top, bottom]
+            aspect='auto'
+        )
         self.fig.colorbar(self.im, ax=self.ax, label="RSI Signal Strength")
 
         # --- DRAW OBSTACLES ---
@@ -176,8 +181,15 @@ class GridEnvironment:
         if self.visualize:
             self.trajectory = [self.start_position]  # store visited positions
             # Precompute RSI map
-            self.x_vals = np.linspace(0, self.workspace_length, self.grid_size)
-            self.y_vals = np.linspace(0, self.workspace_width, self.grid_size)
+            # x_scale and y_scale stay the same
+            x_scale = (500 - 0) / self.grid_size
+            y_scale = (500 - 0) / self.grid_size
+
+            # Centers
+            # x_idx 0 is far left, y_idx 0 is far top
+            self.x_vals = (np.arange(self.grid_size) + 0.5) * x_scale
+            self.y_vals = (np.arange(self.grid_size) + 0.5) * y_scale
+            
             X, Y = np.meshgrid(self.x_vals, self.y_vals, indexing='ij')
             dx = X - self.goal_position[0]
             dy = Y - self.goal_position[1]
@@ -213,7 +225,7 @@ class GridEnvironment:
         self._initialize_visualization()
         return (self.current_position[0], self.current_position[1], rsi), done
 
-    def _is_goal(self, pos, threshold=25.0):
+    def _is_goal(self, pos, threshold=12.5):
         dx = pos[0] - self.goal_position[0]
         dy = pos[1] - self.goal_position[1]
         distance = math.sqrt(dx**2 + dy**2)
@@ -242,10 +254,11 @@ class GridEnvironment:
             dy = self.cell_width
 
         # Apply movement
-        new_x = max(0.0, min(self.workspace_length, self.current_position[0] + dx))
-        new_y = max(0.0, min(self.workspace_width, self.current_position[1] + dy))
+        new_x = self.current_position[0] + dx
+        new_y = self.current_position[1] + dy
 
-        self.current_position = (new_x, new_y)
+        if not (new_x < 0.0 or new_x > self.workspace_length or new_y < 0.0 or new_y > self.workspace_width):
+            self.current_position = (new_x, new_y)
 
         rsi = self._get_rsi_feedback(self.current_position)
 
@@ -262,7 +275,7 @@ class GridEnvironment:
 
         self.current_position_grid = self._world_to_grid_continuous(*self.current_position)
 
-        print(f"After action {action}, current position is {self.current_position} and RSI is {rsi}.")
+        #print(f"After action {action}, current position is {self.current_position} and RSI is {rsi}.")
         return (self.current_position[0], self.current_position[1], rsi), done
 """
 # Example usage:

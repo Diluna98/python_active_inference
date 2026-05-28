@@ -1,0 +1,1198 @@
+--- PROFILING RESOLUTION: 10x10 ---
+Testing location: (237.5, 437.5)
+Chosen action: 0
+context: 221.62921142578125, Mean surprise: 3.4348344802856445, latency:250.00599992927164, CPU availability: 100.0
+Testing location: (387.5, 387.5)
+Chosen action: 0
+context: 221.133544921875, Mean surprise: 3.103544235229492, latency:248.4219999751076, CPU availability: 100.0
+Testing location: (362.5, 137.5)
+Chosen action: 0
+context: 221.05569458007812, Mean surprise: 2.5989596843719482, latency:254.0822000009939, CPU availability: 98.66527679979919
+Testing location: (87.5, 137.5)
+Chosen action: 0
+context: 220.88172912597656, Mean surprise: 2.557983636856079, latency:250.74869999662042, CPU availability: 99.9769513993009
+Testing location: (87.5, 487.5)
+Chosen action: 0
+context: 219.2108612060547, Mean surprise: 3.1065282821655273, latency:246.88630003947765, CPU availability: 100.0
+Testing location: (162.5, 337.5)
+Chosen action: 0
+context: 221.1876983642578, Mean surprise: 3.0555105209350586, latency:248.22860001586378, CPU availability: 100.0
+Testing location: (162.5, 387.5)
+Chosen action: 0
+context: 221.32211303710938, Mean surprise: 3.0643720626831055, latency:248.32970008719712, CPU availability: 100.0
+Testing location: (262.5, 337.5)
+Chosen action: 0
+context: 221.2140350341797, Mean surprise: 3.075756311416626, latency:245.95530005171895, CPU availability: 100.0
+Testing location: (337.5, 87.5)
+Chosen action: 0
+context: 220.8870849609375, Mean surprise: 2.563777446746826, latency:246.14339997060597, CPU availability: 100.0
+Testing location: (387.5, 262.5)
+Chosen action: 0
+context: 221.02398681640625, Mean surprise: 2.799962043762207, latency:247.79450008645654, CPU availability: 100.0
+Testing location: (87.5, 12.5)
+Chosen action: 3
+context: 218.94390869140625, Mean surprise: 2.466646432876587, latency:246.26000004354864, CPU availability: 100.0
+Testing location: (187.5, 237.5)
+Chosen action: 0
+context: 221.08836364746094, Mean surprise: 2.8599348068237305, latency:245.28669996652752, CPU availability: 100.0
+Testing location: (62.5, 137.5)
+Chosen action: 0
+context: 220.56114196777344, Mean surprise: 2.5247011184692383, latency:252.4190000258386, CPU availability: 99.31538668021753
+Testing location: (487.5, 487.5)
+Chosen action: 0
+context: 217.21707153320312, Mean surprise: 2.795469045639038, latency:254.12389996927232, CPU availability: 98.64908651264702
+Testing location: (37.5, 37.5)
+Chosen action: 3
+context: 218.76620483398438, Mean surprise: 2.4520103931427, latency:245.85309997200966, CPU availability: 100.0
+Testing location: (287.5, 262.5)
+Chosen action: 0
+context: 221.08323669433594, Mean surprise: 2.9256932735443115, latency:248.33480000961572, CPU availability: 100.0
+Testing location: (312.5, 62.5)
+Chosen action: 0
+context: 220.59730529785156, Mean surprise: 2.574826240539551, latency:247.76880000717938, CPU availability: 100.0
+Testing location: (412.5, 212.5)
+Chosen action: 0
+context: 220.92071533203125, Mean surprise: 2.6357455253601074, latency:252.34300002921373, CPU availability: 99.34529822542237
+Testing location: (112.5, 237.5)
+Chosen action: 0
+context: 221.04367065429688, Mean surprise: 2.7722833156585693, latency:246.80709990207106, CPU availability: 100.0
+Testing location: (112.5, 312.5)
+Chosen action: 0
+context: 221.0663299560547, Mean surprise: 3.0573456287384033, latency:252.04519997350872, CPU availability: 99.46267810549415
+Testing location: (187.5, 362.5)
+Chosen action: 0
+context: 221.24761962890625, Mean surprise: 3.0744147300720215, latency:248.3099999371916, CPU availability: 100.0
+Testing location: (87.5, 62.5)
+Chosen action: 0
+context: 220.3943328857422, Mean surprise: 2.4853525161743164, latency:249.8426999663934, CPU availability: 100.0
+Testing location: (87.5, 462.5)
+Chosen action: 0
+context: 220.1336212158203, Mean surprise: 3.0853066444396973, latency:250.33260008785874, CPU availability: 100.0
+Testing location: (337.5, 112.5)
+Chosen action: 0
+context: 221.02020263671875, Mean surprise: 2.616145372390747, latency:247.535299975425, CPU availability: 100.0
+Testing location: (287.5, 312.5)
+Chosen action: 0
+context: 221.1458740234375, Mean surprise: 3.071310043334961, latency:247.00099998153746, CPU availability: 100.0
+Testing location: (487.5, 362.5)
+Chosen action: 3
+context: 219.1578369140625, Mean surprise: 2.6489577293395996, latency:245.495600043796, CPU availability: 100.0
+Testing location: (412.5, 462.5)
+Chosen action: 0
+context: 219.9953155517578, Mean surprise: 3.156582832336426, latency:252.21210008021444, CPU availability: 99.3968591714154
+Testing location: (37.5, 387.5)
+Chosen action: 0
+context: 219.89540100097656, Mean surprise: 2.998697519302368, latency:251.08319998253137, CPU availability: 99.84375933851463
+Testing location: (37.5, 237.5)
+Chosen action: 0
+context: 219.9539031982422, Mean surprise: 2.604351758956909, latency:250.44409988913685, CPU availability: 100.0
+Testing location: (387.5, 162.5)
+Chosen action: 0
+context: 221.02366638183594, Mean surprise: 2.610367774963379, latency:250.44050009455532, CPU availability: 100.0
+Testing location: (462.5, 112.5)
+Chosen action: 0
+context: 219.86029052734375, Mean surprise: 2.4868245124816895, latency:251.01420003920794, CPU availability: 99.87120485249145
+Testing location: (187.5, 287.5)
+Chosen action: 0
+context: 221.1023406982422, Mean surprise: 3.0393600463867188, latency:249.8829000396654, CPU availability: 100.0
+Testing location: (237.5, 162.5)
+Chosen action: 0
+context: 221.0943603515625, Mean surprise: 2.7735702991485596, latency:250.6512999534607, CPU availability: 100.0
+Testing location: (212.5, 487.5)
+Chosen action: 0
+context: 222.84298706054688, Mean surprise: 2.9893550872802734, latency:255.46659994870424, CPU availability: 98.13059945227158
+Testing location: (287.5, 162.5)
+Chosen action: 0
+context: 221.09365844726562, Mean surprise: 2.747408151626587, latency:245.38450001273304, CPU availability: 100.0
+Testing location: (137.5, 262.5)
+Chosen action: 0
+context: 221.0670623779297, Mean surprise: 2.8885672092437744, latency:258.56979994568974, CPU availability: 96.95289472423129
+Testing location: (437.5, 87.5)
+Chosen action: 0
+context: 220.3948974609375, Mean surprise: 2.484586715698242, latency:252.12309998460114, CPU availability: 99.43194651553601
+Testing location: (62.5, 462.5)
+Chosen action: 0
+context: 219.67401123046875, Mean surprise: 3.15169095993042, latency:258.01340001635253, CPU availability: 97.16197139920313
+Testing location: (462.5, 137.5)
+Chosen action: 0
+context: 219.9134063720703, Mean surprise: 2.5114591121673584, latency:248.71030007489026, CPU availability: 100.0
+Testing location: (287.5, 62.5)
+Chosen action: 0
+context: 220.58441162109375, Mean surprise: 2.587808132171631, latency:252.8062000637874, CPU availability: 99.16327442394464
+Testing location: (287.5, 362.5)
+Chosen action: 0
+context: 221.2707061767578, Mean surprise: 3.0724799633026123, latency:248.00199992023408, CPU availability: 100.0
+Testing location: (262.5, 362.5)
+Chosen action: 0
+context: 221.33108520507812, Mean surprise: 3.0838959217071533, latency:250.84270001389086, CPU availability: 99.93948634587235
+Testing location: (62.5, 187.5)
+Chosen action: 0
+context: 220.58352661132812, Mean surprise: 2.5803658962249756, latency:249.49110008310527, CPU availability: 100.0
+Testing location: (362.5, 87.5)
+Chosen action: 0
+context: 220.88328552246094, Mean surprise: 2.573211669921875, latency:244.66860003303736, CPU availability: 100.0
+Testing location: (487.5, 462.5)
+Chosen action: 0
+context: 217.98944091796875, Mean surprise: 2.793950080871582, latency:245.59549998957664, CPU availability: 100.0
+Testing location: (412.5, 312.5)
+Chosen action: 0
+context: 220.89804077148438, Mean surprise: 2.863112211227417, latency:249.61790000088513, CPU availability: 100.0
+Testing location: (162.5, 462.5)
+Chosen action: 0
+context: 220.93980407714844, Mean surprise: 3.173058271408081, latency:250.3104000352323, CPU availability: 100.0
+Testing location: (487.5, 412.5)
+Chosen action: 3
+context: 218.96328735351562, Mean surprise: 2.712855815887451, latency:250.3364000003785, CPU availability: 100.0
+Testing location: (262.5, 137.5)
+Chosen action: 0
+context: 221.0881805419922, Mean surprise: 2.7222843170166016, latency:245.74569996912032, CPU availability: 100.0
+Testing location: (387.5, 187.5)
+Chosen action: 0
+context: 221.03939819335938, Mean surprise: 2.6354851722717285, latency:246.93779996596277, CPU availability: 100.0
+Testing location: (262.5, 462.5)
+Chosen action: 0
+context: 221.0640869140625, Mean surprise: 3.432967185974121, latency:246.71920004766434, CPU availability: 100.0
+Testing location: (262.5, 487.5)
+Chosen action: 0
+context: 223.07980346679688, Mean surprise: 2.986104965209961, latency:248.23550006840378, CPU availability: 100.0
+Testing location: (462.5, 237.5)
+Chosen action: 0
+context: 219.94317626953125, Mean surprise: 2.58353853225708, latency:245.28839997947216, CPU availability: 100.0
+Testing location: (412.5, 112.5)
+Chosen action: 0
+context: 220.8269805908203, Mean surprise: 2.5522301197052, latency:249.40009997226298, CPU availability: 100.0
+Testing location: (362.5, 287.5)
+Chosen action: 0
+context: 221.07620239257812, Mean surprise: 2.9344491958618164, latency:249.96389995794743, CPU availability: 100.0
+Testing location: (337.5, 462.5)
+Chosen action: 0
+context: 220.50767517089844, Mean surprise: 3.0563571453094482, latency:246.95729999803007, CPU availability: 100.0
+Testing location: (387.5, 362.5)
+Chosen action: 0
+context: 221.1004180908203, Mean surprise: 3.117664098739624, latency:245.72270002681762, CPU availability: 100.0
+Testing location: (87.5, 37.5)
+Chosen action: 0
+context: 219.74172973632812, Mean surprise: 2.45701265335083, latency:250.24179997853935, CPU availability: 100.0
+Testing location: (337.5, 212.5)
+Chosen action: 0
+context: 221.10720825195312, Mean surprise: 2.7606329917907715, latency:252.6230999501422, CPU availability: 99.2351475298484
+Testing location: (362.5, 437.5)
+Chosen action: 0
+context: 220.8763885498047, Mean surprise: 3.0448849201202393, latency:250.13220007531345, CPU availability: 100.0
+Testing location: (387.5, 437.5)
+Chosen action: 0
+context: 220.7543182373047, Mean surprise: 3.1128334999084473, latency:252.6230999501422, CPU availability: 99.2351475298484
+Testing location: (187.5, 212.5)
+Chosen action: 0
+context: 221.0906524658203, Mean surprise: 2.814595937728882, latency:252.13899998925626, CPU availability: 99.42567628993612
+Testing location: (112.5, 12.5)
+Chosen action: 3
+context: 219.07498168945312, Mean surprise: 2.4838201999664307, latency:251.04429991915822, CPU availability: 99.85923042695174
+Testing location: (437.5, 187.5)
+Chosen action: 0
+context: 220.5911102294922, Mean surprise: 2.565505266189575, latency:250.52939995657653, CPU availability: 100.0
+Testing location: (262.5, 412.5)
+Chosen action: 0
+context: 221.7869873046875, Mean surprise: 3.139498710632324, latency:250.9476999985054, CPU availability: 99.89767028408431
+Testing location: (62.5, 487.5)
+Chosen action: 0
+context: 218.80181884765625, Mean surprise: 3.1620588302612305, latency:248.46949998755008, CPU availability: 100.0
+Testing location: (112.5, 287.5)
+Chosen action: 0
+context: 221.0262451171875, Mean surprise: 2.9458694458007812, latency:249.62380004581064, CPU availability: 100.0
+Testing location: (162.5, 487.5)
+Chosen action: 0
+context: 219.67835998535156, Mean surprise: 3.116605281829834, latency:251.19249999988824, CPU availability: 99.80031487011416
+Testing location: (412.5, 362.5)
+Chosen action: 0
+context: 220.92605590820312, Mean surprise: 3.064032793045044, latency:244.92089997511357, CPU availability: 100.0
+Testing location: (237.5, 312.5)
+Chosen action: 0
+context: 221.1727752685547, Mean surprise: 3.0955843925476074, latency:252.34450004063547, CPU availability: 99.34470768716213
+Testing location: (137.5, 312.5)
+Chosen action: 0
+context: 221.1363067626953, Mean surprise: 3.069145917892456, latency:253.01059999037534, CPU availability: 99.08316329020856
+Testing location: (412.5, 437.5)
+Chosen action: 0
+context: 220.60836791992188, Mean surprise: 3.1487607955932617, latency:252.17560003511608, CPU availability: 99.4112459314425
+Testing location: (112.5, 362.5)
+Chosen action: 0
+context: 221.17208862304688, Mean surprise: 3.125175714492798, latency:249.85920009203255, CPU availability: 100.0
+Testing location: (437.5, 387.5)
+Chosen action: 0
+context: 220.555908203125, Mean surprise: 2.9936695098876953, latency:251.96110003162175, CPU availability: 99.49587690264
+Testing location: (312.5, 287.5)
+Chosen action: 0
+context: 221.09945678710938, Mean surprise: 2.998763084411621, latency:245.38269999902695, CPU availability: 100.0
+Testing location: (62.5, 62.5)
+Chosen action: 0
+context: 220.07020568847656, Mean surprise: 2.4631524085998535, latency:256.5930999116972, CPU availability: 97.69978460694058
+Testing location: (112.5, 212.5)
+Chosen action: 0
+context: 221.03643798828125, Mean surprise: 2.7047998905181885, latency:251.7762000206858, CPU availability: 99.56894492386627
+Testing location: (237.5, 87.5)
+Chosen action: 0
+context: 220.91925048828125, Mean surprise: 2.6148924827575684, latency:257.27249996270984, CPU availability: 97.44178097788773
+Testing location: (437.5, 12.5)
+Chosen action: 0
+context: 218.63966369628906, Mean surprise: 2.441409111022949, latency:248.0367999523878, CPU availability: 100.0
+Testing location: (262.5, 162.5)
+Chosen action: 0
+context: 221.1036376953125, Mean surprise: 2.7729709148406982, latency:250.78470003791153, CPU availability: 99.9625997487497
+Testing location: (37.5, 262.5)
+Chosen action: 0
+context: 219.9552764892578, Mean surprise: 2.645552158355713, latency:249.45250002201647, CPU availability: 100.0
+Testing location: (462.5, 487.5)
+Chosen action: 0
+context: 218.0090789794922, Mean surprise: 2.9693589210510254, latency:247.42639996111393, CPU availability: 100.0
+Testing location: (487.5, 37.5)
+Chosen action: 0
+context: 217.98306274414062, Mean surprise: 2.4281303882598877, latency:249.73429995588958, CPU availability: 100.0
+Testing location: (212.5, 287.5)
+Chosen action: 0
+context: 221.1032257080078, Mean surprise: 3.0559449195861816, latency:249.9820999801159, CPU availability: 100.0
+Testing location: (62.5, 162.5)
+Chosen action: 0
+context: 220.58053588867188, Mean surprise: 2.5405118465423584, latency:249.58460009656847, CPU availability: 100.0
+Testing location: (462.5, 187.5)
+Chosen action: 0
+context: 219.94076538085938, Mean surprise: 2.538362503051758, latency:247.5112999090925, CPU availability: 100.0
+Testing location: (62.5, 212.5)
+Chosen action: 0
+context: 220.607421875, Mean surprise: 2.6135668754577637, latency:249.3364999536425, CPU availability: 100.0
+Testing location: (162.5, 112.5)
+Chosen action: 0
+context: 221.02792358398438, Mean surprise: 2.615583896636963, latency:248.76400001812726, CPU availability: 100.0
+Testing location: (12.5, 287.5)
+Chosen action: 3
+context: 219.1619110107422, Mean surprise: 2.6217868328094482, latency:246.2769999401644, CPU availability: 100.0
+Testing location: (337.5, 37.5)
+Chosen action: 0
+context: 219.9294891357422, Mean surprise: 2.509218454360962, latency:245.47890003304929, CPU availability: 100.0
+Testing location: (137.5, 212.5)
+Chosen action: 0
+context: 221.08843994140625, Mean surprise: 2.7441964149475098, latency:247.1779000479728, CPU availability: 100.0
+Testing location: (337.5, 287.5)
+Chosen action: 0
+context: 221.0860137939453, Mean surprise: 2.991018295288086, latency:240.80919998232275, CPU availability: 100.0
+Testing location: (462.5, 87.5)
+Chosen action: 0
+context: 219.7352752685547, Mean surprise: 2.4599955081939697, latency:249.07909997273237, CPU availability: 100.0
+Testing location: (312.5, 162.5)
+Chosen action: 0
+context: 221.10720825195312, Mean surprise: 2.7034575939178467, latency:245.07780000567436, CPU availability: 100.0
+Testing location: (12.5, 237.5)
+Chosen action: 3
+context: 219.16989135742188, Mean surprise: 2.5595405101776123, latency:251.11569999717176, CPU availability: 99.83083731237173
+Testing location: (487.5, 212.5)
+Chosen action: 3
+context: 219.1707763671875, Mean surprise: 2.5212454795837402, latency:248.90020000748336, CPU availability: 100.0
+Testing location: (412.5, 37.5)
+Chosen action: 0
+context: 219.7342529296875, Mean surprise: 2.456134557723999, latency:255.23879996035248, CPU availability: 98.21818076598899
+Testing location: (312.5, 437.5)
+Chosen action: 0
+context: 221.25778198242188, Mean surprise: 3.1006598472595215, latency:250.4781000316143, CPU availability: 100.0
+Testing location: (337.5, 312.5)
+Chosen action: 0
+context: 221.1488800048828, Mean surprise: 3.0535366535186768, latency:250.36289996933192, CPU availability: 100.0
+Testing location: (137.5, 462.5)
+Chosen action: 0
+context: 220.47169494628906, Mean surprise: 3.054694890975952, latency:251.961600035429, CPU availability: 99.49567945859596
+Testing location: (312.5, 387.5)
+Chosen action: 0
+context: 221.3540802001953, Mean surprise: 3.067786455154419, latency:246.1456999881193, CPU availability: 100.0
+Testing location: (387.5, 237.5)
+Chosen action: 0
+context: 221.04624938964844, Mean surprise: 2.738602638244629, latency:251.70359993353486, CPU availability: 99.5976640763969
+Testing location: (162.5, 137.5)
+Chosen action: 0
+context: 221.081787109375, Mean surprise: 2.639754056930542, latency:253.60860000364482, CPU availability: 98.849528733015
+Testing location: (162.5, 362.5)
+Chosen action: 0
+context: 221.19888305664062, Mean surprise: 3.0598526000976562, latency:244.374799891375, CPU availability: 100.0
+Testing location: (287.5, 12.5)
+Chosen action: 3
+context: 219.14991760253906, Mean surprise: 2.4969897270202637, latency:248.0377999600023, CPU availability: 100.0
+Testing location: (487.5, 12.5)
+Chosen action: 0
+context: 217.19606018066406, Mean surprise: 2.405062198638916, latency:254.94110002182424, CPU availability: 98.33287214518947
+Testing location: (437.5, 37.5)
+Chosen action: 0
+context: 219.42532348632812, Mean surprise: 2.468090295791626, latency:250.58510003145784, CPU availability: 100.0
+Testing location: (362.5, 262.5)
+Chosen action: 0
+context: 221.06939697265625, Mean surprise: 2.8491480350494385, latency:247.26630002260208, CPU availability: 100.0
+Testing location: (412.5, 412.5)
+Chosen action: 0
+context: 220.87109375, Mean surprise: 3.156872034072876, latency:253.24479991104454, CPU availability: 98.99153152130206
+Testing location: (112.5, 187.5)
+Chosen action: 0
+context: 221.03602600097656, Mean surprise: 2.6492862701416016, latency:244.60370000451803, CPU availability: 100.0
+Testing location: (337.5, 187.5)
+Chosen action: 0
+context: 221.10203552246094, Mean surprise: 2.7063119411468506, latency:249.22760005574673, CPU availability: 100.0
+Testing location: (112.5, 437.5)
+Chosen action: 0
+context: 220.88699340820312, Mean surprise: 3.096883535385132, latency:244.180400040932, CPU availability: 100.0
+Testing location: (312.5, 362.5)
+Chosen action: 0
+context: 221.21633911132812, Mean surprise: 3.063930034637451, latency:246.19520001579076, CPU availability: 100.0
+Testing location: (112.5, 387.5)
+Chosen action: 0
+context: 221.15878295898438, Mean surprise: 3.149583101272583, latency:250.39609998930246, CPU availability: 100.0
+Testing location: (12.5, 262.5)
+Chosen action: 3
+context: 219.1646728515625, Mean surprise: 2.584697961807251, latency:248.5923001077026, CPU availability: 100.0
+Testing location: (362.5, 312.5)
+Chosen action: 0
+context: 221.08572387695312, Mean surprise: 3.046881675720215, latency:243.22589999064803, CPU availability: 100.0
+Testing location: (137.5, 112.5)
+Chosen action: 0
+context: 221.00584411621094, Mean surprise: 2.579793930053711, latency:253.2284000189975, CPU availability: 98.99794253377301
+Testing location: (12.5, 87.5)
+Chosen action: 3
+context: 218.95571899414062, Mean surprise: 2.4361777305603027, latency:243.81240003276616, CPU availability: 100.0
+Testing location: (37.5, 462.5)
+Chosen action: 3
+context: 218.8765106201172, Mean surprise: 3.118948459625244, latency:248.64370003342628, CPU availability: 100.0
+Testing location: (287.5, 412.5)
+Chosen action: 0
+context: 221.5142059326172, Mean surprise: 3.0642495155334473, latency:243.52010001894087, CPU availability: 100.0
+Testing location: (37.5, 212.5)
+Chosen action: 0
+context: 219.9586639404297, Mean surprise: 2.567791223526001, latency:249.42749994806945, CPU availability: 100.0
+Testing location: (162.5, 162.5)
+Chosen action: 0
+context: 221.0849151611328, Mean surprise: 2.6705162525177, latency:248.36889992002398, CPU availability: 100.0
+Testing location: (262.5, 237.5)
+Chosen action: 0
+context: 221.07177734375, Mean surprise: 2.860783100128174, latency:247.6619000080973, CPU availability: 100.0
+Testing location: (87.5, 387.5)
+Chosen action: 0
+context: 221.028564453125, Mean surprise: 3.1153430938720703, latency:244.01630007196218, CPU availability: 100.0
+Testing location: (412.5, 187.5)
+Chosen action: 0
+context: 220.90914916992188, Mean surprise: 2.6036794185638428, latency:246.47210002876818, CPU availability: 100.0
+Testing location: (362.5, 412.5)
+Chosen action: 0
+context: 221.1518096923828, Mean surprise: 3.048757314682007, latency:247.68280005082488, CPU availability: 100.0
+Testing location: (387.5, 137.5)
+Chosen action: 0
+context: 221.0083465576172, Mean surprise: 2.5891222953796387, latency:245.99379999563098, CPU availability: 100.0
+Testing location: (137.5, 162.5)
+Chosen action: 0
+context: 221.0865936279297, Mean surprise: 2.6316094398498535, latency:246.91869993694127, CPU availability: 100.0
+Testing location: (387.5, 87.5)
+Chosen action: 0
+context: 220.82888793945312, Mean surprise: 2.5492746829986572, latency:247.81349999830127, CPU availability: 100.0
+Testing location: (162.5, 87.5)
+Chosen action: 0
+context: 220.89012145996094, Mean surprise: 2.5674426555633545, latency:245.9281999617815, CPU availability: 100.0
+Testing location: (162.5, 262.5)
+Chosen action: 0
+context: 221.0941162109375, Mean surprise: 2.9206459522247314, latency:245.20870007108897, CPU availability: 100.0
+Testing location: (112.5, 162.5)
+Chosen action: 0
+context: 221.0312957763672, Mean surprise: 2.6118569374084473, latency:252.38670001272112, CPU availability: 99.32809689154158
+Testing location: (462.5, 312.5)
+Chosen action: 0
+context: 219.9477996826172, Mean surprise: 2.671624183654785, latency:246.71390000730753, CPU availability: 100.0
+Testing location: (387.5, 37.5)
+Chosen action: 0
+context: 219.86978149414062, Mean surprise: 2.472839593887329, latency:246.4934999588877, CPU availability: 100.0
+Testing location: (487.5, 437.5)
+Chosen action: 0
+context: 218.64805603027344, Mean surprise: 2.7904932498931885, latency:247.41579999681562, CPU availability: 100.0
+Testing location: (162.5, 37.5)
+Chosen action: 0
+context: 219.92709350585938, Mean surprise: 2.5165464878082275, latency:246.0784000577405, CPU availability: 100.0
+Testing location: (12.5, 487.5)
+Chosen action: 0
+context: 217.21279907226562, Mean surprise: 2.974888563156128, latency:245.34300004597753, CPU availability: 100.0
+Testing location: (462.5, 212.5)
+Chosen action: 0
+context: 219.94244384765625, Mean surprise: 2.551454544067383, latency:244.57769992295653, CPU availability: 100.0
+Testing location: (262.5, 262.5)
+Chosen action: 0
+context: 221.0801544189453, Mean surprise: 2.944201946258545, latency:243.33279998973012, CPU availability: 100.0
+Testing location: (287.5, 112.5)
+Chosen action: 0
+context: 221.0413055419922, Mean surprise: 2.666271448135376, latency:246.59729993436486, CPU availability: 100.0
+Testing location: (437.5, 412.5)
+Chosen action: 0
+context: 220.49844360351562, Mean surprise: 3.0480268001556396, latency:245.80829998012632, CPU availability: 100.0
+Testing location: (162.5, 312.5)
+Chosen action: 0
+context: 221.17303466796875, Mean surprise: 3.04878306388855, latency:247.91909998748451, CPU availability: 100.0
+Testing location: (162.5, 412.5)
+Chosen action: 0
+context: 221.37850952148438, Mean surprise: 3.0259222984313965, latency:247.48939997516572, CPU availability: 100.0
+Testing location: (437.5, 62.5)
+Chosen action: 0
+context: 220.07508850097656, Mean surprise: 2.462739944458008, latency:244.2552000284195, CPU availability: 100.0
+Testing location: (37.5, 437.5)
+Chosen action: 0
+context: 219.51168823242188, Mean surprise: 3.1171109676361084, latency:248.1755999615416, CPU availability: 100.0
+Testing location: (487.5, 187.5)
+Chosen action: 3
+context: 219.15379333496094, Mean surprise: 2.50014591217041, latency:247.0832000253722, CPU availability: 100.0
+Testing location: (212.5, 387.5)
+Chosen action: 0
+context: 221.52371215820312, Mean surprise: 3.1210358142852783, latency:248.2381999725476, CPU availability: 100.0
+Testing location: (137.5, 237.5)
+Chosen action: 0
+context: 221.0729522705078, Mean surprise: 2.814601182937622, latency:246.82880006730556, CPU availability: 100.0
+Testing location: (412.5, 337.5)
+Chosen action: 0
+context: 220.9022216796875, Mean surprise: 2.9686591625213623, latency:248.23259992990643, CPU availability: 100.0
+Testing location: (62.5, 12.5)
+Chosen action: 0
+context: 218.6341552734375, Mean surprise: 2.4440789222717285, latency:252.9556000372395, CPU availability: 99.10470687072906
+Testing location: (137.5, 137.5)
+Chosen action: 0
+context: 221.0638885498047, Mean surprise: 2.601731300354004, latency:249.52620000112802, CPU availability: 100.0
+Testing location: (487.5, 337.5)
+Chosen action: 3
+context: 219.15521240234375, Mean surprise: 2.642631769180298, latency:254.59090003278106, CPU availability: 98.46813295279647
+Testing location: (337.5, 237.5)
+Chosen action: 0
+context: 221.08984375, Mean surprise: 2.816087245941162, latency:251.4123999280855, CPU availability: 99.71302370197657
+Testing location: (112.5, 262.5)
+Chosen action: 0
+context: 221.03585815429688, Mean surprise: 2.8494789600372314, latency:247.2696000477299, CPU availability: 100.0
+Testing location: (312.5, 262.5)
+Chosen action: 0
+context: 221.08111572265625, Mean surprise: 2.9197096824645996, latency:251.40570010989904, CPU availability: 99.71568099705513
+Testing location: (87.5, 437.5)
+Chosen action: 0
+context: 220.68995666503906, Mean surprise: 3.1005196571350098, latency:253.61460004933178, CPU availability: 98.84719013859491
+Testing location: (262.5, 312.5)
+Chosen action: 0
+context: 221.1707000732422, Mean surprise: 3.0809545516967773, latency:251.98349996935576, CPU availability: 99.48703227016334
+Testing location: (312.5, 137.5)
+Chosen action: 0
+context: 221.0775146484375, Mean surprise: 2.6648623943328857, latency:252.24429997615516, CPU availability: 99.38417080334344
+Testing location: (187.5, 462.5)
+Chosen action: 0
+context: 220.95506286621094, Mean surprise: 3.137087106704712, latency:247.97949998173863, CPU availability: 100.0
+Testing location: (412.5, 287.5)
+Chosen action: 0
+context: 220.90626525878906, Mean surprise: 2.801503896713257, latency:247.5041999714449, CPU availability: 100.0
+Testing location: (312.5, 112.5)
+Chosen action: 0
+context: 221.03855895996094, Mean surprise: 2.6383910179138184, latency:245.82579999696463, CPU availability: 100.0
+Testing location: (137.5, 487.5)
+Chosen action: 0
+context: 219.46031188964844, Mean surprise: 3.0945818424224854, latency:248.6415000166744, CPU availability: 100.0
+Testing location: (487.5, 87.5)
+Chosen action: 3
+context: 218.95030212402344, Mean surprise: 2.4389536380767822, latency:248.14039992634207, CPU availability: 100.0
+Testing location: (487.5, 162.5)
+Chosen action: 3
+context: 219.1453857421875, Mean surprise: 2.474893093109131, latency:247.87419999483973, CPU availability: 100.0
+Testing location: (87.5, 87.5)
+Chosen action: 0
+context: 220.71583557128906, Mean surprise: 2.5186893939971924, latency:249.75519999861717, CPU availability: 100.0
+Testing location: (212.5, 312.5)
+Chosen action: 0
+context: 221.144287109375, Mean surprise: 3.073155403137207, latency:248.90660005621612, CPU availability: 100.0
+Testing location: (112.5, 37.5)
+Chosen action: 0
+context: 219.86495971679688, Mean surprise: 2.474433660507202, latency:246.81679997593164, CPU availability: 100.0
+Testing location: (87.5, 162.5)
+Chosen action: 0
+context: 220.90679931640625, Mean surprise: 2.578259229660034, latency:250.534399994649, CPU availability: 100.0
+Testing location: (337.5, 162.5)
+Chosen action: 0
+context: 221.08367919921875, Mean surprise: 2.6620302200317383, latency:246.24069989658892, CPU availability: 100.0
+Testing location: (262.5, 12.5)
+Chosen action: 3
+context: 219.1597137451172, Mean surprise: 2.508685350418091, latency:248.36200010031462, CPU availability: 100.0
+Testing location: (437.5, 487.5)
+Chosen action: 0
+context: 218.68875122070312, Mean surprise: 3.1345527172088623, latency:247.9318999685347, CPU availability: 100.0
+Testing location: (287.5, 437.5)
+Chosen action: 0
+context: 221.51231384277344, Mean surprise: 3.1368110179901123, latency:250.8604999165982, CPU availability: 99.93239510139915
+Testing location: (437.5, 337.5)
+Chosen action: 0
+context: 220.5933074951172, Mean surprise: 2.855572462081909, latency:248.68940003216267, CPU availability: 100.0
+Testing location: (287.5, 487.5)
+Chosen action: 0
+context: 220.3559112548828, Mean surprise: 3.201822519302368, latency:250.77420007437468, CPU availability: 99.96678520184695
+Testing location: (62.5, 262.5)
+Chosen action: 0
+context: 220.609130859375, Mean surprise: 2.739893913269043, latency:249.9784000683576, CPU availability: 100.0
+Testing location: (212.5, 62.5)
+Chosen action: 0
+context: 220.600341796875, Mean surprise: 2.5861101150512695, latency:247.89680005051196, CPU availability: 100.0
+Testing location: (237.5, 487.5)
+Chosen action: 0
+context: 220.1996307373047, Mean surprise: 3.3412303924560547, latency:251.9357999553904, CPU availability: 99.50586854841161
+Testing location: (362.5, 462.5)
+Chosen action: 0
+context: 220.243408203125, Mean surprise: 3.0716474056243896, latency:249.56119991838932, CPU availability: 100.0
+Testing location: (312.5, 212.5)
+Chosen action: 0
+context: 221.08570861816406, Mean surprise: 2.7963614463806152, latency:249.62549994233996, CPU availability: 100.0
+Testing location: (312.5, 187.5)
+Chosen action: 0
+context: 221.10848999023438, Mean surprise: 2.7549142837524414, latency:248.81840008310974, CPU availability: 100.0
+Testing location: (37.5, 312.5)
+Chosen action: 0
+context: 219.93833923339844, Mean surprise: 2.7942748069763184, latency:246.38629995752126, CPU availability: 100.0
+Testing location: (37.5, 487.5)
+Chosen action: 0
+context: 218.08303833007812, Mean surprise: 3.1395645141601562, latency:251.51830003596842, CPU availability: 99.67104019633956
+Testing location: (387.5, 287.5)
+Chosen action: 0
+context: 221.03028869628906, Mean surprise: 2.8616297245025635, latency:249.15020004846156, CPU availability: 100.0
+Testing location: (487.5, 387.5)
+Chosen action: 3
+context: 219.0881805419922, Mean surprise: 2.709010124206543, latency:249.8711000662297, CPU availability: 100.0
+Testing location: (62.5, 112.5)
+Chosen action: 0
+context: 220.52284240722656, Mean surprise: 2.522653102874756, latency:247.03700002282858, CPU availability: 100.0
+Testing location: (162.5, 237.5)
+Chosen action: 0
+context: 221.0921173095703, Mean surprise: 2.8421401977539062, latency:252.46199988760054, CPU availability: 99.29847107351243
+Testing location: (187.5, 312.5)
+Chosen action: 0
+context: 221.13833618164062, Mean surprise: 3.057697057723999, latency:249.92169998586178, CPU availability: 100.0
+Testing location: (462.5, 437.5)
+Chosen action: 0
+context: 219.45547485351562, Mean surprise: 2.9510483741760254, latency:253.0662000644952, CPU availability: 99.06139415935836
+Testing location: (237.5, 12.5)
+Chosen action: 3
+context: 219.15309143066406, Mean surprise: 2.501901149749756, latency:253.7157000042498, CPU availability: 98.80780177411206
+Testing location: (437.5, 362.5)
+Chosen action: 0
+context: 220.57806396484375, Mean surprise: 2.9226949214935303, latency:251.74380000680685, CPU availability: 99.58175967917448
+Testing location: (362.5, 387.5)
+Chosen action: 0
+context: 221.21652221679688, Mean surprise: 3.0955698490142822, latency:245.88439997751266, CPU availability: 100.0
+Testing location: (162.5, 62.5)
+Chosen action: 0
+context: 220.57894897460938, Mean surprise: 2.562080144882202, latency:248.58730006963015, CPU availability: 100.0
+Testing location: (287.5, 387.5)
+Chosen action: 0
+context: 221.30909729003906, Mean surprise: 3.055785894393921, latency:246.90419994294643, CPU availability: 100.0
+Testing location: (62.5, 437.5)
+Chosen action: 0
+context: 220.28048706054688, Mean surprise: 3.139108896255493, latency:252.67029996030033, CPU availability: 99.2166099337313
+Testing location: (137.5, 37.5)
+Chosen action: 0
+context: 219.90916442871094, Mean surprise: 2.4955291748046875, latency:248.28449997585267, CPU availability: 100.0
+Testing location: (337.5, 62.5)
+Chosen action: 0
+context: 220.5738067626953, Mean surprise: 2.5588223934173584, latency:252.72929994389415, CPU availability: 99.19344768717096
+Testing location: (37.5, 162.5)
+Chosen action: 0
+context: 219.93727111816406, Mean surprise: 2.517911434173584, latency:247.86799994762987, CPU availability: 100.0
+Testing location: (412.5, 12.5)
+Chosen action: 3
+context: 218.951171875, Mean surprise: 2.4655749797821045, latency:246.39270000625402, CPU availability: 100.0
+Testing location: (37.5, 412.5)
+Chosen action: 0
+context: 219.81561279296875, Mean surprise: 3.0551488399505615, latency:246.49930000305176, CPU availability: 100.0
+Testing location: (262.5, 87.5)
+Chosen action: 0
+context: 220.91738891601562, Mean surprise: 2.615323543548584, latency:248.26080002821982, CPU availability: 100.0
+Testing location: (287.5, 87.5)
+Chosen action: 0
+context: 220.91712951660156, Mean surprise: 2.598532199859619, latency:252.39859998691827, CPU availability: 99.32341381568409
+Testing location: (437.5, 137.5)
+Chosen action: 0
+context: 220.56150817871094, Mean surprise: 2.5176069736480713, latency:250.09479990694672, CPU availability: 100.0
+Testing location: (87.5, 187.5)
+Chosen action: 0
+context: 220.91481018066406, Mean surprise: 2.608550786972046, latency:250.48210006207228, CPU availability: 100.0
+Testing location: (12.5, 437.5)
+Chosen action: 0
+context: 218.6633758544922, Mean surprise: 2.9607248306274414, latency:246.91069999244064, CPU availability: 100.0
+Testing location: (462.5, 162.5)
+Chosen action: 0
+context: 219.9303741455078, Mean surprise: 2.509645700454712, latency:245.6511000636965, CPU availability: 100.0
+Testing location: (362.5, 12.5)
+Chosen action: 3
+context: 219.1203155517578, Mean surprise: 2.5029635429382324, latency:247.30869999621063, CPU availability: 100.0
+Testing location: (187.5, 437.5)
+Chosen action: 0
+context: 221.54769897460938, Mean surprise: 3.131742238998413, latency:248.7998999422416, CPU availability: 100.0
+Testing location: (412.5, 387.5)
+Chosen action: 0
+context: 220.9301300048828, Mean surprise: 3.090879440307617, latency:252.11950007360429, CPU availability: 99.4333662635428
+Testing location: (212.5, 37.5)
+Chosen action: 0
+context: 219.93704223632812, Mean surprise: 2.5399839878082275, latency:250.53149997256696, CPU availability: 100.0
+Testing location: (187.5, 137.5)
+Chosen action: 0
+context: 221.0888214111328, Mean surprise: 2.67546010017395, latency:248.18669992964715, CPU availability: 100.0
+Testing location: (187.5, 412.5)
+Chosen action: 0
+context: 221.50367736816406, Mean surprise: 3.064544916152954, latency:245.29630003962666, CPU availability: 100.0
+Testing location: (37.5, 112.5)
+Chosen action: 0
+context: 219.86196899414062, Mean surprise: 2.4883267879486084, latency:245.40050001814961, CPU availability: 100.0
+Testing location: (112.5, 137.5)
+Chosen action: 0
+context: 220.992919921875, Mean surprise: 2.5739712715148926, latency:263.80419998895377, CPU availability: 95.02915645031321
+Testing location: (337.5, 137.5)
+Chosen action: 0
+context: 221.07470703125, Mean surprise: 2.6337668895721436, latency:246.59740005154163, CPU availability: 100.0
+Testing location: (37.5, 337.5)
+Chosen action: 0
+context: 219.97015380859375, Mean surprise: 2.8605029582977295, latency:246.15060002543032, CPU availability: 100.0
+Testing location: (112.5, 87.5)
+Chosen action: 0
+context: 220.8335418701172, Mean surprise: 2.5493264198303223, latency:251.37299997732043, CPU availability: 99.72865262085348
+Testing location: (387.5, 412.5)
+Chosen action: 0
+context: 221.09352111816406, Mean surprise: 3.1177151203155518, latency:248.70379990898073, CPU availability: 100.0
+Testing location: (237.5, 412.5)
+Chosen action: 0
+context: 221.78158569335938, Mean surprise: 3.194032907485962, latency:251.42400001641363, CPU availability: 99.70842318698065
+Testing location: (237.5, 212.5)
+Chosen action: 0
+context: 221.07894897460938, Mean surprise: 2.828263759613037, latency:246.87170004472136, CPU availability: 100.0
+Testing location: (437.5, 462.5)
+Chosen action: 0
+context: 219.51849365234375, Mean surprise: 3.1111221313476562, latency:250.44179998803884, CPU availability: 100.0
+Testing location: (212.5, 362.5)
+Chosen action: 0
+context: 221.3148651123047, Mean surprise: 3.0880725383758545, latency:249.95600001420826, CPU availability: 100.0
+Testing location: (237.5, 187.5)
+Chosen action: 0
+context: 221.0842742919922, Mean surprise: 2.7990548610687256, latency:249.25370002165437, CPU availability: 100.0
+Testing location: (362.5, 62.5)
+Chosen action: 0
+context: 220.5598602294922, Mean surprise: 2.5338923931121826, latency:256.52669998817146, CPU availability: 97.7250734296116
+Testing location: (112.5, 412.5)
+Chosen action: 0
+context: 221.08653259277344, Mean surprise: 3.110909938812256, latency:249.22869994770736, CPU availability: 100.0
+Testing location: (437.5, 287.5)
+Chosen action: 0
+context: 220.583984375, Mean surprise: 2.7331714630126953, latency:249.2570000467822, CPU availability: 100.0
+Testing location: (137.5, 62.5)
+Chosen action: 0
+context: 220.55628967285156, Mean surprise: 2.532651901245117, latency:253.37000004947186, CPU availability: 98.94261589022034
+Testing location: (462.5, 62.5)
+Chosen action: 0
+context: 219.4280548095703, Mean surprise: 2.435056209564209, latency:250.98310003522784, CPU availability: 99.88358016727548
+Testing location: (237.5, 287.5)
+Chosen action: 0
+context: 221.1095733642578, Mean surprise: 3.0548977851867676, latency:259.50629997532815, CPU availability: 96.60301347359727
+Testing location: (62.5, 287.5)
+Chosen action: 0
+context: 220.5928955078125, Mean surprise: 2.8010659217834473, latency:253.9909000042826, CPU availability: 98.70074318637914
+Testing location: (412.5, 162.5)
+Chosen action: 0
+context: 220.88975524902344, Mean surprise: 2.5666913986206055, latency:246.4876000303775, CPU availability: 100.0
+Testing location: (162.5, 187.5)
+Chosen action: 0
+context: 221.09913635253906, Mean surprise: 2.719992160797119, latency:252.8399999719113, CPU availability: 99.1500181766532
+Testing location: (62.5, 412.5)
+Chosen action: 0
+context: 220.57257080078125, Mean surprise: 3.144118309020996, latency:254.323499975726, CPU availability: 98.57166402394088
+Testing location: (87.5, 312.5)
+Chosen action: 0
+context: 220.91766357421875, Mean surprise: 2.9696669578552246, latency:249.6965000173077, CPU availability: 100.0
+Testing location: (362.5, 162.5)
+Chosen action: 0
+context: 221.0777587890625, Mean surprise: 2.6453614234924316, latency:263.3604999864474, CPU availability: 95.18925804853068
+Testing location: (212.5, 137.5)
+Chosen action: 0
+context: 221.0996856689453, Mean surprise: 2.706592321395874, latency:258.8437999365851, CPU availability: 96.85026490548256
+Testing location: (212.5, 12.5)
+Chosen action: 3
+context: 219.15274047851562, Mean surprise: 2.4983420372009277, latency:252.2718000691384, CPU availability: 99.373336956923
+Testing location: (312.5, 337.5)
+Chosen action: 0
+context: 221.17845153808594, Mean surprise: 3.068894624710083, latency:250.76969992369413, CPU availability: 99.96857914105328
+Testing location: (212.5, 187.5)
+Chosen action: 0
+context: 221.10093688964844, Mean surprise: 2.775529384613037, latency:249.23960003070533, CPU availability: 100.0
+Testing location: (12.5, 337.5)
+Chosen action: 3
+context: 219.14036560058594, Mean surprise: 2.7218565940856934, latency:251.6611999599263, CPU availability: 99.61444432829502
+Testing location: (12.5, 62.5)
+Chosen action: 0
+context: 218.6385040283203, Mean surprise: 2.4193623065948486, latency:254.6237000497058, CPU availability: 98.45544852308011
+Testing location: (187.5, 12.5)
+Chosen action: 3
+context: 219.14935302734375, Mean surprise: 2.488386392593384, latency:260.2867000969127, CPU availability: 96.31337515004037
+Testing location: (62.5, 237.5)
+Chosen action: 0
+context: 220.6034698486328, Mean surprise: 2.656466484069824, latency:253.8838000036776, CPU availability: 98.74237975261464
+Testing location: (137.5, 187.5)
+Chosen action: 0
+context: 221.06436157226562, Mean surprise: 2.6846299171447754, latency:253.11209994833916, CPU availability: 99.04343015650642
+Testing location: (262.5, 287.5)
+Chosen action: 0
+context: 221.09161376953125, Mean surprise: 3.059821367263794, latency:253.04330000653863, CPU availability: 99.07035907432528
+Testing location: (187.5, 262.5)
+Chosen action: 0
+context: 221.08204650878906, Mean surprise: 2.9416496753692627, latency:251.9654999487102, CPU availability: 99.49413946791539
+Testing location: (187.5, 62.5)
+Chosen action: 0
+context: 220.5813751220703, Mean surprise: 2.5730481147766113, latency:250.70590001996607, CPU availability: 99.9940192512562
+Testing location: (212.5, 412.5)
+Chosen action: 0
+context: 221.779296875, Mean surprise: 3.1409356594085693, latency:251.3166000135243, CPU availability: 99.75103352365478
+Testing location: (212.5, 212.5)
+Chosen action: 0
+context: 221.07888793945312, Mean surprise: 2.824220657348633, latency:249.4903999613598, CPU availability: 100.0
+Testing location: (487.5, 62.5)
+Chosen action: 2
+context: 218.63621520996094, Mean surprise: 2.449191093444824, latency:249.0752999437973, CPU availability: 100.0
+Testing location: (437.5, 112.5)
+Chosen action: 0
+context: 220.51670837402344, Mean surprise: 2.516740322113037, latency:251.41060003079474, CPU availability: 99.71373756687007
+Testing location: (87.5, 287.5)
+Chosen action: 0
+context: 220.9098663330078, Mean surprise: 2.8618392944335938, latency:250.38880005013198, CPU availability: 100.0
+Testing location: (112.5, 112.5)
+Chosen action: 0
+context: 220.96514892578125, Mean surprise: 2.5527431964874268, latency:249.13270003162324, CPU availability: 100.0
+Testing location: (212.5, 162.5)
+Chosen action: 0
+context: 221.1155548095703, Mean surprise: 2.7484145164489746, latency:251.44739996176213, CPU availability: 99.69914422186224
+Testing location: (137.5, 387.5)
+Chosen action: 0
+context: 221.2462158203125, Mean surprise: 3.0467042922973633, latency:250.15850004274398, CPU availability: 100.0
+Testing location: (212.5, 337.5)
+Chosen action: 0
+context: 221.19679260253906, Mean surprise: 3.0786545276641846, latency:249.86250000074506, CPU availability: 100.0
+Testing location: (362.5, 487.5)
+Chosen action: 0
+context: 219.3590850830078, Mean surprise: 3.0574276447296143, latency:247.68539995420724, CPU availability: 100.0
+Testing location: (262.5, 387.5)
+Chosen action: 0
+context: 221.5472869873047, Mean surprise: 3.1233878135681152, latency:250.21550001110882, CPU availability: 100.0
+Testing location: (412.5, 262.5)
+Chosen action: 0
+context: 220.91700744628906, Mean surprise: 2.746750593185425, latency:247.72700003813952, CPU availability: 100.0
+Testing location: (62.5, 387.5)
+Chosen action: 0
+context: 220.62066650390625, Mean surprise: 3.0986456871032715, latency:248.39239998254925, CPU availability: 100.0
+Testing location: (312.5, 412.5)
+Chosen action: 0
+context: 221.3382110595703, Mean surprise: 3.025454521179199, latency:249.93789999280125, CPU availability: 100.0
+Testing location: (387.5, 487.5)
+Chosen action: 0
+context: 219.29632568359375, Mean surprise: 3.1198835372924805, latency:252.50529998447746, CPU availability: 99.28144317977127
+Testing location: (437.5, 437.5)
+Chosen action: 0
+context: 220.15689086914062, Mean surprise: 3.1178841590881348, latency:247.54830007441342, CPU availability: 100.0
+Testing location: (12.5, 362.5)
+Chosen action: 3
+context: 219.1387939453125, Mean surprise: 2.7911410331726074, latency:251.29270006436855, CPU availability: 99.7605206461571
+Testing location: (487.5, 312.5)
+Chosen action: 3
+context: 219.15243530273438, Mean surprise: 2.5970003604888916, latency:249.22949995379895, CPU availability: 100.0
+Testing location: (187.5, 37.5)
+Chosen action: 0
+context: 219.93411254882812, Mean surprise: 2.533050537109375, latency:254.44439996499568, CPU availability: 98.52482741396076
+Testing location: (337.5, 262.5)
+Chosen action: 0
+context: 221.081787109375, Mean surprise: 2.887498140335083, latency:249.6468999888748, CPU availability: 100.0
+Testing location: (162.5, 212.5)
+Chosen action: 0
+context: 221.08323669433594, Mean surprise: 2.779237985610962, latency:248.41480003669858, CPU availability: 100.0
+Testing location: (312.5, 462.5)
+Chosen action: 0
+context: 221.0310516357422, Mean surprise: 3.163486957550049, latency:251.843300065957, CPU availability: 99.54241620259296
+Testing location: (337.5, 437.5)
+Chosen action: 0
+context: 220.9492950439453, Mean surprise: 3.0889453887939453, latency:247.255599941127, CPU availability: 100.0
+Testing location: (37.5, 62.5)
+Chosen action: 0
+context: 219.42604064941406, Mean surprise: 2.4381144046783447, latency:248.96560003980994, CPU availability: 100.0
+Testing location: (362.5, 112.5)
+Chosen action: 0
+context: 221.00111389160156, Mean surprise: 2.5799694061279297, latency:250.90849993284792, CPU availability: 99.91327754822728
+Testing location: (462.5, 287.5)
+Chosen action: 0
+context: 219.9391326904297, Mean surprise: 2.633864402770996, latency:247.56180006079376, CPU availability: 100.0
+Testing location: (287.5, 287.5)
+Chosen action: 0
+context: 221.1099395751953, Mean surprise: 3.0331649780273438, latency:249.4271999457851, CPU availability: 100.0
+Testing location: (412.5, 87.5)
+Chosen action: 0
+context: 220.70654296875, Mean surprise: 2.5168535709381104, latency:246.6984000056982, CPU availability: 100.0
+Testing location: (287.5, 137.5)
+Chosen action: 0
+context: 221.08087158203125, Mean surprise: 2.6990129947662354, latency:264.0709000406787, CPU availability: 94.93318116134056
+Testing location: (187.5, 487.5)
+Chosen action: 0
+context: 220.42178344726562, Mean surprise: 3.199481725692749, latency:246.10129999928176, CPU availability: 100.0
+Testing location: (37.5, 287.5)
+Chosen action: 0
+context: 219.9362335205078, Mean surprise: 2.732285499572754, latency:246.51149997953326, CPU availability: 100.0
+Testing location: (287.5, 37.5)
+Chosen action: 0
+context: 219.9385528564453, Mean surprise: 2.5427136421203613, latency:248.37370007298887, CPU availability: 100.0
+Testing location: (437.5, 312.5)
+Chosen action: 0
+context: 220.60939025878906, Mean surprise: 2.7897720336914062, latency:248.83270007558167, CPU availability: 100.0
+Testing location: (112.5, 62.5)
+Chosen action: 0
+context: 220.51220703125, Mean surprise: 2.513375759124756, latency:248.0652000522241, CPU availability: 100.0
+Testing location: (12.5, 212.5)
+Chosen action: 3
+context: 219.1695556640625, Mean surprise: 2.529176712036133, latency:250.14400004874915, CPU availability: 100.0
+Testing location: (237.5, 337.5)
+Chosen action: 0
+context: 221.2030029296875, Mean surprise: 3.08363676071167, latency:247.4090000614524, CPU availability: 100.0
+Testing location: (462.5, 262.5)
+Chosen action: 0
+context: 219.9464569091797, Mean surprise: 2.6076390743255615, latency:251.86359998770058, CPU availability: 99.5343931962547
+Testing location: (212.5, 437.5)
+Chosen action: 0
+context: 221.9497528076172, Mean surprise: 3.007028818130493, latency:247.66719993203878, CPU availability: 100.0
+Testing location: (62.5, 337.5)
+Chosen action: 0
+context: 220.5894317626953, Mean surprise: 2.9829483032226562, latency:251.09619996510446, CPU availability: 99.83859013590776
+Testing location: (287.5, 212.5)
+Chosen action: 0
+context: 221.10064697265625, Mean surprise: 2.832418918609619, latency:251.567899947986, CPU availability: 99.6513887430919
+Testing location: (362.5, 237.5)
+Chosen action: 0
+context: 221.07394409179688, Mean surprise: 2.78587007522583, latency:251.3897999888286, CPU availability: 99.72198790131516
+Testing location: (387.5, 462.5)
+Chosen action: 0
+context: 220.21377563476562, Mean surprise: 3.104095220565796, latency:263.311899965629, CPU availability: 95.20682732634704
+Testing location: (487.5, 262.5)
+Chosen action: 3
+context: 219.16427612304688, Mean surprise: 2.5569379329681396, latency:249.6155999833718, CPU availability: 100.0
+Testing location: (12.5, 162.5)
+Chosen action: 3
+context: 219.14064025878906, Mean surprise: 2.486931800842285, latency:246.59420002717525, CPU availability: 100.0
+Testing location: (412.5, 237.5)
+Chosen action: 0
+context: 220.9304656982422, Mean surprise: 2.6798675060272217, latency:251.23110006097704, CPU availability: 99.78498118630777
+Testing location: (137.5, 412.5)
+Chosen action: 0
+context: 221.10704040527344, Mean surprise: 3.103168249130249, latency:252.58430000394583, CPU availability: 99.25039122624952
+Testing location: (237.5, 237.5)
+Chosen action: 0
+context: 221.08482360839844, Mean surprise: 2.8608593940734863, latency:252.90079996921122, CPU availability: 99.12618147531354
+Testing location: (387.5, 312.5)
+Chosen action: 0
+context: 221.0306396484375, Mean surprise: 2.962197780609131, latency:250.4594000056386, CPU availability: 100.0
+Testing location: (162.5, 287.5)
+Chosen action: 0
+context: 221.09518432617188, Mean surprise: 3.0213277339935303, latency:250.94860000535846, CPU availability: 99.89731200917123
+Testing location: (37.5, 362.5)
+Chosen action: 0
+context: 219.9393310546875, Mean surprise: 2.928410530090332, latency:251.84259994421154, CPU availability: 99.54269293024029
+Testing location: (87.5, 337.5)
+Chosen action: 0
+context: 220.95632934570312, Mean surprise: 3.1013195514678955, latency:251.77990004885942, CPU availability: 99.56748170975996
+Testing location: (212.5, 237.5)
+Chosen action: 0
+context: 221.08151245117188, Mean surprise: 2.8704073429107666, latency:252.4368999293074, CPU availability: 99.30834438237977
+Testing location: (412.5, 137.5)
+Chosen action: 0
+context: 220.88247680664062, Mean surprise: 2.551825761795044, latency:249.50020003598183, CPU availability: 100.0
+Testing location: (287.5, 237.5)
+Chosen action: 0
+context: 221.08038330078125, Mean surprise: 2.8638241291046143, latency:254.10440005362034, CPU availability: 98.65665682180237
+Testing location: (362.5, 37.5)
+Chosen action: 0
+context: 219.90504455566406, Mean surprise: 2.4954512119293213, latency:253.78100003581494, CPU availability: 98.78237767784869
+Testing location: (337.5, 487.5)
+Chosen action: 0
+context: 219.4712677001953, Mean surprise: 3.0983498096466064, latency:249.61820000316948, CPU availability: 100.0
+Testing location: (487.5, 287.5)
+Chosen action: 3
+context: 219.15492248535156, Mean surprise: 2.569349765777588, latency:258.7599999969825, CPU availability: 96.88163005600688
+Testing location: (362.5, 337.5)
+Chosen action: 0
+context: 221.1568603515625, Mean surprise: 3.1040027141571045, latency:252.29659990873188, CPU availability: 99.36356891875961
+Testing location: (262.5, 437.5)
+Chosen action: 0
+context: 221.90980529785156, Mean surprise: 3.010855197906494, latency:248.9635000238195, CPU availability: 100.0
+Testing location: (287.5, 337.5)
+Chosen action: 0
+context: 221.1975555419922, Mean surprise: 3.0951337814331055, latency:257.9833000199869, CPU availability: 97.17330769494694
+Testing location: (287.5, 462.5)
+Chosen action: 0
+context: 220.99473571777344, Mean surprise: 3.129361629486084, latency:252.18330009374768, CPU availability: 99.40821055034458
+Testing location: (262.5, 62.5)
+Chosen action: 0
+context: 220.60647583007812, Mean surprise: 2.5933806896209717, latency:254.46959992405027, CPU availability: 98.51507056435108
+Testing location: (237.5, 112.5)
+Chosen action: 0
+context: 221.04051208496094, Mean surprise: 2.6478540897369385, latency:250.90729992371053, CPU availability: 99.91375540138677
+Testing location: (312.5, 87.5)
+Chosen action: 0
+context: 220.90313720703125, Mean surprise: 2.5886945724487305, latency:248.1617999728769, CPU availability: 100.0
+Testing location: (87.5, 237.5)
+Chosen action: 0
+context: 220.9144287109375, Mean surprise: 2.7157256603240967, latency:251.10690004657954, CPU availability: 99.83433584799846
+Testing location: (137.5, 337.5)
+Chosen action: 0
+context: 221.2003173828125, Mean surprise: 3.0826666355133057, latency:247.80490004923195, CPU availability: 100.0
+Testing location: (387.5, 212.5)
+Chosen action: 0
+context: 221.03656005859375, Mean surprise: 2.6831188201904297, latency:254.16909996420145, CPU availability: 98.63154331714937
+Testing location: (62.5, 37.5)
+Chosen action: 0
+context: 219.4174346923828, Mean surprise: 2.4442949295043945, latency:256.36320002377033, CPU availability: 97.78739924714452
+Testing location: (462.5, 37.5)
+Chosen action: 3
+context: 218.7725372314453, Mean surprise: 2.4478631019592285, latency:252.8860999736935, CPU availability: 99.13194357304658
+Testing location: (187.5, 337.5)
+Chosen action: 0
+context: 221.18333435058594, Mean surprise: 3.093118906021118, latency:252.93059996329248, CPU availability: 99.11450254195519
+Testing location: (387.5, 12.5)
+Chosen action: 3
+context: 219.07603454589844, Mean surprise: 2.4875688552856445, latency:252.33609997667372, CPU availability: 99.34801479184873
+Testing location: (137.5, 362.5)
+Chosen action: 0
+context: 221.23577880859375, Mean surprise: 3.049879550933838, latency:251.27489992883056, CPU availability: 99.76758761062248
+Testing location: (262.5, 212.5)
+Chosen action: 0
+context: 221.0811767578125, Mean surprise: 2.8251829147338867, latency:250.18750003073364, CPU availability: 100.0
+Testing location: (362.5, 212.5)
+Chosen action: 0
+context: 221.08189392089844, Mean surprise: 2.72529935836792, latency:248.4118000138551, CPU availability: 100.0
+Testing location: (312.5, 12.5)
+Chosen action: 3
+context: 219.1550750732422, Mean surprise: 2.4932568073272705, latency:249.00479998905212, CPU availability: 100.0
+Testing location: (12.5, 387.5)
+Chosen action: 3
+context: 219.08433532714844, Mean surprise: 2.870530128479004, latency:252.58359999861568, CPU availability: 99.2506662868745
+Testing location: (237.5, 62.5)
+Chosen action: 0
+context: 220.59793090820312, Mean surprise: 2.5910086631774902, latency:249.3928000330925, CPU availability: 100.0
+Testing location: (87.5, 112.5)
+Chosen action: 0
+context: 220.8401641845703, Mean surprise: 2.5266273021698, latency:250.08709996473044, CPU availability: 100.0
+Testing location: (12.5, 37.5)
+Chosen action: 0
+context: 217.9834747314453, Mean surprise: 2.430830478668213, latency:249.15309995412827, CPU availability: 100.0
+Testing location: (262.5, 112.5)
+Chosen action: 0
+context: 221.04440307617188, Mean surprise: 2.6879959106445312, latency:256.9193000672385, CPU availability: 97.57573909955055
+Testing location: (337.5, 387.5)
+Chosen action: 0
+context: 221.234375, Mean surprise: 3.0692529678344727, latency:249.65030001476407, CPU availability: 100.0
+Testing location: (37.5, 187.5)
+Chosen action: 0
+context: 219.9542236328125, Mean surprise: 2.5377161502838135, latency:260.27610001619905, CPU availability: 96.31729763677784
+Testing location: (12.5, 12.5)
+Chosen action: 0
+context: 217.20008850097656, Mean surprise: 2.406604766845703, latency:279.8018999164924, CPU availability: 89.5958554980575
+Testing location: (387.5, 62.5)
+Chosen action: 0
+context: 220.51409912109375, Mean surprise: 2.509477138519287, latency:249.82369993813336, CPU availability: 100.0
+Testing location: (12.5, 412.5)
+Chosen action: 3
+context: 218.97958374023438, Mean surprise: 2.8758347034454346, latency:249.35749999713153, CPU availability: 100.0
+Testing location: (387.5, 112.5)
+Chosen action: 0
+context: 220.966552734375, Mean surprise: 2.5490806102752686, latency:249.1996999597177, CPU availability: 100.0
+Testing location: (162.5, 12.5)
+Chosen action: 3
+context: 219.13937377929688, Mean surprise: 2.4801976680755615, latency:249.48640004731715, CPU availability: 100.0
+Testing location: (237.5, 387.5)
+Chosen action: 0
+context: 221.5772247314453, Mean surprise: 3.1149652004241943, latency:250.8157999254763, CPU availability: 99.95020489318719
+Testing location: (12.5, 137.5)
+Chosen action: 3
+context: 219.1207733154297, Mean surprise: 2.4868199825286865, latency:251.00749998819083, CPU availability: 99.87387067788583
+Testing location: (337.5, 362.5)
+Chosen action: 0
+context: 221.22686767578125, Mean surprise: 3.053403854370117, latency:251.15749996621162, CPU availability: 99.8142225351525
+Testing location: (387.5, 337.5)
+Chosen action: 0
+context: 221.0509033203125, Mean surprise: 3.087597608566284, latency:250.43940008617938, CPU availability: 100.0
+Testing location: (462.5, 387.5)
+Chosen action: 0
+context: 219.88441467285156, Mean surprise: 2.8630950450897217, latency:253.7506999215111, CPU availability: 98.79417318160796
+Testing location: (312.5, 237.5)
+Chosen action: 0
+context: 221.08169555664062, Mean surprise: 2.849436044692993, latency:254.40990005154163, CPU availability: 98.53818812837544
+Testing location: (187.5, 87.5)
+Chosen action: 0
+context: 220.91485595703125, Mean surprise: 2.583237648010254, latency:259.2477999860421, CPU availability: 96.69933783179539
+Testing location: (112.5, 462.5)
+Chosen action: 0
+context: 220.2034149169922, Mean surprise: 3.1017589569091797, latency:250.06909994408488, CPU availability: 100.0
+Testing location: (212.5, 462.5)
+Chosen action: 0
+context: 221.11289978027344, Mean surprise: 3.428298234939575, latency:250.49060001038015, CPU availability: 100.0
+Testing location: (87.5, 412.5)
+Chosen action: 0
+context: 220.95797729492188, Mean surprise: 3.1162750720977783, latency:250.20379992201924, CPU availability: 100.0
+Testing location: (137.5, 12.5)
+Chosen action: 3
+context: 219.1141815185547, Mean surprise: 2.505542039871216, latency:252.82539997715503, CPU availability: 99.1557438266298
+Testing location: (187.5, 162.5)
+Chosen action: 0
+context: 221.1013946533203, Mean surprise: 2.71651029586792, latency:254.18499996885657, CPU availability: 98.62537362972455
+Testing location: (12.5, 187.5)
+Chosen action: 0
+context: 219.1505889892578, Mean surprise: 2.514694929122925, latency:277.9057000298053, CPU availability: 90.20718391278534
+Testing location: (212.5, 87.5)
+Chosen action: 4
+context: 220.9168701171875, Mean surprise: 2.603256940841675, latency:368.8037999672815, CPU availability: 67.97405719578813
+Testing location: (62.5, 312.5)
+Chosen action: 0
+context: 220.59487915039062, Mean surprise: 2.8675899505615234, latency:283.92339998390526, CPU availability: 88.29526060346238
+Testing location: (337.5, 337.5)
+Chosen action: 0
+context: 221.1787109375, Mean surprise: 3.062272071838379, latency:254.27639996632934, CPU availability: 98.58992260516347
+Testing location: (437.5, 262.5)
+Chosen action: 0
+context: 220.5881805419922, Mean surprise: 2.6640567779541016, latency:248.95260005723685, CPU availability: 100.0
+Testing location: (462.5, 12.5)
+Chosen action: 0
+context: 217.98297119140625, Mean surprise: 2.4241323471069336, latency:249.58519998472184, CPU availability: 100.0
+Testing location: (337.5, 12.5)
+Chosen action: 3
+context: 219.1490020751953, Mean surprise: 2.5170743465423584, latency:248.70649992953986, CPU availability: 100.0
+Testing location: (487.5, 137.5)
+Chosen action: 3
+context: 219.1332550048828, Mean surprise: 2.480506181716919, latency:257.93820002581924, CPU availability: 97.19029825939167
+Testing location: (437.5, 212.5)
+Chosen action: 0
+context: 220.58900451660156, Mean surprise: 2.5935158729553223, latency:250.5024999845773, CPU availability: 100.0
+Testing location: (187.5, 387.5)
+Chosen action: 0
+context: 221.3280792236328, Mean surprise: 3.053110361099243, latency:248.84240003302693, CPU availability: 100.0
+Testing location: (312.5, 37.5)
+Chosen action: 0
+context: 219.93527221679688, Mean surprise: 2.529616117477417, latency:250.88790000882, CPU availability: 99.921481235718
+Testing location: (237.5, 37.5)
+Chosen action: 0
+context: 219.94598388671875, Mean surprise: 2.541945695877075, latency:268.12119991518557, CPU availability: 93.49909891843716
+Testing location: (212.5, 262.5)
+Chosen action: 0
+context: 221.08343505859375, Mean surprise: 2.9511165618896484, latency:249.84910001512617, CPU availability: 100.0
+Testing location: (187.5, 187.5)
+Chosen action: 0
+context: 221.11900329589844, Mean surprise: 2.7489686012268066, latency:253.3745999680832, CPU availability: 98.94081962500533
+Testing location: (87.5, 362.5)
+Chosen action: 0
+context: 220.98548889160156, Mean surprise: 3.133556842803955, latency:250.2628000220284, CPU availability: 100.0
+Testing location: (237.5, 462.5)
+Chosen action: 0
+context: 228.9174041748047, Mean surprise: 5.753595352172852, latency:251.2226999970153, CPU availability: 99.78831766913515
+Testing location: (12.5, 112.5)
+Chosen action: 3
+context: 219.07504272460938, Mean surprise: 2.4588732719421387, latency:248.8460000604391, CPU availability: 100.0
+Testing location: (37.5, 12.5)
+Chosen action: 0
+context: 217.98036193847656, Mean surprise: 2.424546957015991, latency:252.3411000147462, CPU availability: 99.34604625063069
+Testing location: (462.5, 337.5)
+Chosen action: 0
+context: 219.937744140625, Mean surprise: 2.7247347831726074, latency:249.98199997935444, CPU availability: 100.0
+Testing location: (87.5, 262.5)
+Chosen action: 0
+context: 220.900146484375, Mean surprise: 2.79964017868042, latency:250.43529993854463, CPU availability: 100.0
+Testing location: (462.5, 362.5)
+Chosen action: 0
+context: 219.91921997070312, Mean surprise: 2.7889413833618164, latency:248.76520002726465, CPU availability: 100.0
+Testing location: (362.5, 187.5)
+Chosen action: 0
+context: 221.08627319335938, Mean surprise: 2.683123826980591, latency:253.92000004649162, CPU availability: 98.7283025693524
+Testing location: (412.5, 62.5)
+Chosen action: 0
+context: 220.38720703125, Mean surprise: 2.4856555461883545, latency:252.3024999536574, CPU availability: 99.36124532101212
+Testing location: (137.5, 287.5)
+Chosen action: 0
+context: 221.0845489501953, Mean surprise: 3.0038537979125977, latency:257.50299997162074, CPU availability: 97.35455740617721
+Testing location: (462.5, 462.5)
+Chosen action: 0
+context: 218.80203247070312, Mean surprise: 2.9582509994506836, latency:252.83729995135218, CPU availability: 99.15107698833789
+Testing location: (312.5, 312.5)
+Chosen action: 0
+context: 221.12014770507812, Mean surprise: 3.0482985973358154, latency:252.13999999687076, CPU availability: 99.42528195966973
+Testing location: (237.5, 137.5)
+Chosen action: 0
+context: 221.09088134765625, Mean surprise: 2.7321701049804688, latency:252.62879999354482, CPU availability: 99.23290849515402
+Testing location: (262.5, 37.5)
+Chosen action: 0
+context: 219.94488525390625, Mean surprise: 2.543646812438965, latency:253.3733999589458, CPU availability: 98.94128822150216
+Testing location: (37.5, 87.5)
+Chosen action: 0
+context: 219.7311553955078, Mean surprise: 2.4621024131774902, latency:251.50670006405562, CPU availability: 99.67563721608695
+Testing location: (437.5, 237.5)
+Chosen action: 0
+context: 220.61146545410156, Mean surprise: 2.629842519760132, latency:253.9041000418365, CPU availability: 98.73448514171018
+Testing location: (12.5, 312.5)
+Chosen action: 3
+context: 219.14881896972656, Mean surprise: 2.6640703678131104, latency:251.80030008777976, CPU availability: 99.55941507718894
+Testing location: (312.5, 487.5)
+Chosen action: 0
+context: 219.6832275390625, Mean surprise: 3.1157684326171875, latency:252.66949995420873, CPU availability: 99.21692407490129
+Testing location: (62.5, 87.5)
+Chosen action: 0
+context: 220.38894653320312, Mean surprise: 2.4904696941375732, latency:248.22880001738667, CPU availability: 100.0
+Testing location: (187.5, 112.5)
+Chosen action: 0
+context: 221.0332489013672, Mean surprise: 2.647057294845581, latency:252.51379993278533, CPU availability: 99.27810123515208
+Testing location: (362.5, 362.5)
+Chosen action: 0
+context: 221.1855010986328, Mean surprise: 3.1220014095306396, latency:248.75830009113997, CPU availability: 100.0
+Testing location: (137.5, 87.5)
+Chosen action: 0
+context: 220.8724365234375, Mean surprise: 2.5416789054870605, latency:249.928499921225, CPU availability: 100.0
+Testing location: (137.5, 437.5)
+Chosen action: 0
+context: 220.93075561523438, Mean surprise: 3.0874593257904053, latency:248.1386000290513, CPU availability: 100.0
+Testing location: (112.5, 337.5)
+Chosen action: 0
+context: 221.11187744140625, Mean surprise: 3.113241195678711, latency:251.26930000260472, CPU availability: 99.76981108611409
+Testing location: (162.5, 437.5)
+Chosen action: 0
+context: 221.22508239746094, Mean surprise: 3.1004457473754883, latency:252.08850007038563, CPU availability: 99.44559385295426
+Testing location: (237.5, 362.5)
+Chosen action: 0
+context: 221.33853149414062, Mean surprise: 3.0825533866882324, latency:251.97410001419485, CPU availability: 99.49074365812893
+Testing location: (212.5, 112.5)
+Chosen action: 0
+context: 221.03591918945312, Mean surprise: 2.672572612762451, latency:252.95699993148446, CPU availability: 99.10415841344647
+Testing location: (287.5, 187.5)
+Chosen action: 0
+context: 221.10191345214844, Mean surprise: 2.7778267860412598, latency:251.28749990835786, CPU availability: 99.76258509532889
+Testing location: (237.5, 262.5)
+Chosen action: 0
+context: 221.0807342529297, Mean surprise: 2.94594144821167, latency:248.98290005512536, CPU availability: 100.0
+Testing location: (487.5, 237.5)
+Chosen action: 3
+context: 219.14678955078125, Mean surprise: 2.536482334136963, latency:250.8448000298813, CPU availability: 99.93864967507281
+Testing location: (12.5, 462.5)
+Chosen action: 3
+context: 218.00192260742188, Mean surprise: 2.966005802154541, latency:248.7701999489218, CPU availability: 100.0
+Testing location: (412.5, 487.5)
+Chosen action: 3
+context: 219.14508056640625, Mean surprise: 3.161616563796997, latency:252.2445999784395, CPU availability: 99.38405260268314
+Testing location: (487.5, 112.5)
+Chosen action: 3
+context: 219.08798217773438, Mean surprise: 2.458597183227539, latency:249.68369991984218, CPU availability: 100.0
+Testing location: (87.5, 212.5)
+Chosen action: 0
+context: 220.94033813476562, Mean surprise: 2.6589019298553467, latency:261.14959991537035, CPU availability: 95.99513306213771
+Testing location: (112.5, 487.5)
+Chosen action: 0
+context: 219.37673950195312, Mean surprise: 3.088754653930664, latency:253.18820006214082, CPU availability: 99.01366093225202
+Testing location: (262.5, 187.5)
+Chosen action: 0
+context: 221.08392333984375, Mean surprise: 2.7967822551727295, latency:248.68099996820092, CPU availability: 100.0
+Testing location: (37.5, 137.5)
+Chosen action: 0
+context: 219.91253662109375, Mean surprise: 2.4958138465881348, latency:248.58879996463656, CPU availability: 100.0
+Testing location: (437.5, 162.5)
+Chosen action: 0
+context: 220.57920837402344, Mean surprise: 2.545306444168091, latency:253.69259994477034, CPU availability: 98.81679874957969
+Testing location: (462.5, 412.5)
+Chosen action: 0
+context: 219.75326538085938, Mean surprise: 2.8736660480499268, latency:251.93000002764165, CPU availability: 99.50815937065626
+Testing location: (62.5, 362.5)
+Chosen action: 0
+context: 220.63238525390625, Mean surprise: 3.0750510692596436, latency:249.84019994735718, CPU availability: 100.0
