@@ -588,8 +588,29 @@ class TaskLikelihoodModel:
         self.mu_y = y_coords
         self.sigma_y = np.full((self.states_dim[1]), self.sigma_y, dtype=np.float64)
 
+
+        ### for master model (highest resolution) ###
+        block_size_master = int(self.states_dim[0]/np.sqrt(400))  # 20 -> 5
+        sqrt_goal_dim_master = int(np.sqrt(400))
+
+        x_coords_goal_master = x_coords.reshape(sqrt_goal_dim_master, block_size_master).mean(axis=1)
+        y_coords_goal_master = y_coords.reshape(sqrt_goal_dim_master, block_size_master).mean(axis=1)
+
+        Xc_master, Yc_master, Xg_master, Yg_master = np.meshgrid(
+            self.x_coords_agent, self.y_coords_agent,
+            x_coords_goal_master, y_coords_goal_master,
+            indexing='xy'
+        )
+
+        d_master = np.sqrt((Xc_master - Xg_master)**2 + (Yc_master - Yg_master)**2)
+        
+        self.mu_signal_master = (self.RSI * np.exp(-self.alpha * d_master)).reshape(
+            self.states_dim[0], self.states_dim[1], -1
+        )
+        self.sigma_signal_master = np.full((self.states_dim[0], self.states_dim[1], 400), self.sigma_s, dtype=np.float64)
+
     
-    def likelihoods(self, obs_val, modality_idx):
+    def likelihoods(self, obs_val, modality_idx, master=False):
         if modality_idx == 0:  # x_obs
 
             exponent = np.exp(-0.5 * ((obs_val - self.mu_x) / self.sigma_x) ** 2)
@@ -601,9 +622,12 @@ class TaskLikelihoodModel:
             normalization = 1.0 / (self.sigma_y * 2.50662827463)
 
         elif modality_idx == 2:  # signal
-
-            exponent = np.exp(-0.5 * ((obs_val - self.mu_signal) / self.sigma_signal) ** 2)
-            normalization = 1.0 / (self.sigma_signal * 2.50662827463)
+            if not master:
+                exponent = np.exp(-0.5 * ((obs_val - self.mu_signal) / self.sigma_signal) ** 2)
+                normalization = 1.0 / (self.sigma_signal * 2.50662827463)
+            if master:
+                exponent = np.exp(-0.5 * ((obs_val - self.mu_signal_master) / self.sigma_signal_master) ** 2)
+                normalization = 1.0 / (self.sigma_signal_master * 2.50662827463)
 
         return exponent * normalization
 
@@ -1006,40 +1030,15 @@ class TaskLikelihoodModel:
         print(f"Min Preference Value: {np.min(log_preferences)}")
 
     def compute_sensitivity(self, observation):
-        """
-        Compute Fisher-based geometric sensitivity from observation model + observation ONLY.
-        
-        Args:
-            observation: Observation at time t
-            modality_idx:  0=x_obs, 1=y_obs, 2=signal
-            
-        Returns:
-            sensitivity_dict: Dictionary with sensitivity measures
-        """
-        modality_idx = 2  # Focus on signal modality for this function
-        obs_val = observation[modality_idx]
-        if modality_idx == 2:  # signal modality
-            # Your observation model parameters (precomputed in likelihood)
-            # mu_signal shape: (x, y, goals)
-            # sigma_signal shape: (x, y, goals)
-            mu = self.mu_signal
-            sigma = self.sigma_signal
 
-            jacobian = sigma * np.abs(mu)
+        normalized_entropy = 0
+        for modality_idx in [0, 1, 2]:
+            likelihood = self.likelihoods(observation[modality_idx], modality_idx, master=True)
+            normalized_likelihood = likelihood / (likelihood.sum() + self.eps)
+            entropy = -np.sum(normalized_likelihood * np.log(normalized_likelihood + self.eps))
+            normalized_entropy += entropy / np.log(np.size(likelihood) + self.eps)
 
-            geometric_sensitivity = jacobian ** 2
-
-            sensitivity_map = np.mean(geometric_sensitivity, axis=2)
-
-            mu_at_pos = self.mu_signal[observation[0], observation[1], :]
-
-            alpha = self.likelihood.sigma
-
-            jacobian = alpha * np.abs(mu_at_pos)
-
-            sensitivity = float(np.mean(jacobian ** 2))
-
-            return sensitivity
+        return normalized_entropy
 
 
 
