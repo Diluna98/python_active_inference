@@ -1,6 +1,10 @@
 import json
+import scipy
+from scipy.stats import t
 from time import time
 from matplotlib import scale
+from matplotlib.pylab import beta
+from numpy.char import array
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,6 +12,8 @@ from scipy.special import logsumexp
 from scipy.ndimage import zoom
 from scipy.signal import convolve2d
 from itertools import product
+from scipy.special import gammaln
+
 
 class LikelihoodModels:
     def __init__(self, model_name, states_dim=None, obstacles_dic=None, obs_limits=None):
@@ -42,33 +48,32 @@ class MetaLikelihoodModel:
         self.eps=1e-16 # small constant for numerical stability in log calculations
         # profiled signatures for the "Base" (Low CPU)
         #self.base_signatures = self._parse_signatures(signatures_df)
-        self.div_min = 210
-        self.div_max = 240
+        self.infog_proxy_min = 0
+        self.infog_proxy_max = 2
         self.err_min = 2
-        self.err_max = 5
+        self.err_max = 10
         self.lat_min = 50
         self.lat_max = 9000
         self.avl_cpu_min = 0
         self.avl_cpu_max = 100
-        tables = np.load("meta_likelihood_tables.npz")
+        K = 4 #num_models
+        C = 4 #num_contexts
+        with open("external_lm_params.json", "r") as f:
+            data = json.load(f)
 
-        self.mu_div = np.array( [218.0, 218.99954306467953, 221.08756960131404, 228.9174041748047])#tables["mu_div"]#
-        #self.mu_div[2] = np.float64(732.4630591942876)
-        self.sigma_div = np.array([0.002487785, 0.032138192404436966, 0.005101360229065015, 0.001])#tables["sigma_div"]#
+        self.mu_infog_proxy = np.array([0.02, 0.1, 0.5, 3.0], dtype=np.float64)
+        self.sigma_infog_proxy = np.array([0.02, 0.015, 0.08, 0.4], dtype=np.float64)
 
-        self.mu_err = tables["mu_acc"]
-        self.mu_err[1,:] = np.array([2.405677  , 2.5865965 , 2.7137377 , 2.93000022])
-        self.mu_err[2,:] = np.array( [2.090536, 2.3765965, 2.5965078999999998, 2.9044280666666666])
-        self.sigma_err = tables["sigma_acc"]
-        self.mu_err[1,2] = 2.8696
-        self.mu_err[1,3] = 3.207
-        self.mu_err[2,1] = 2.4
-        self.sigma_err[1,:] = np.array([0.001, 0.19941466053072915, 0.1626745784124216, 0.001])
-        self.sigma_err[2,1] = self.sigma_err[2, 0]
-        self.sigma_err[2,:] = np.array([0.0020035093827304967, 0.023805141448987186, 0.22005629539489746, 0.001])
-        self.mu_cpu = np.array([ 33.34 ,  50, 100])
-        self.sigma_cpu = np.array([20.0, 15.0, 10.0])
+        self.mu_err = np.ones((K, C))* 2.4
+        
+        self.kappa_err = np.ones((K, C)) * 1e-3 # Initial precision of the mean estimates
 
+        self.alpha_err = np.ones((K, C)) * 1.0 # Varince in the data
+        self.beta_err = np.ones((K, C)) * 1.0 # Varince scale
+        
+        self.mu_cpu = np.array([20.0, 57.5, 87.5], dtype=np.float64)
+        self.sigma_cpu = np.array([8.0, 10.0, 8.0], dtype=np.float64)
+        """
         mu_lat_1d = tables["mu_lat"]
         sigma_lat_1d = tables["sigma_lat"]
 
@@ -86,6 +91,20 @@ class MetaLikelihoodModel:
 
                 # uncertainty increases with degradation
                 self.sigma_lat[r, u] = sigma_lat_1d[r]* cpu_scale[u]
+        """
+        
+        self.mu_err = np.array(data["mu_err"])
+        
+        self.kappa_err = np.array(data["kappa_err"])
+        self.alpha_err = np.array(data["alpha_err"])
+        self.beta_err = np.array(data["beta_err"])
+        
+        self.mu_cpu = np.array([20.0, 57.5, 87.5], dtype=np.float64)
+        self.sigma_cpu = np.array([8.0, 10.0, 8.0], dtype=np.float64)
+        
+        self.mu_lat = np.array(data["mu_lat"])
+        self.sigma_lat = np.array(data["sigma_lat"])
+        
 
         """        
         with open("external_lm_params.json", "r") as f:
@@ -101,8 +120,12 @@ class MetaLikelihoodModel:
         self.mu_cpu = np.array(data["mu_cpu"])
         self.sigma_cpu = np.array(data["sigma_cpu"])
         """
-        self.pref_dep = None #[(1, 2)] # joint preference for info gain and accuracy
+        self.pref_dep = [(0, 1)] # joint preference for info gain and accuracy
         self.log_preferences = self._build_preferences()
+
+    def _softmax(self, x, axis = 0, gamma=1.0):
+        exp_x = np.exp(gamma * x - np.max(gamma * x))
+        return exp_x / np.sum(exp_x, axis=axis, keepdims=True)
 
     def get_o_grid(self, modality_idx, N_grid=100):
         """
@@ -121,7 +144,7 @@ class MetaLikelihoodModel:
             1D array of observation values
         """
         if modality_idx == 0:
-            return np.linspace(self.div_min, self.div_max, N_grid)
+            return np.linspace(self.infog_proxy_min, self.infog_proxy_max, N_grid)
 
         elif modality_idx == 1:
             return np.linspace(self.err_min, self.err_max, N_grid)
@@ -134,71 +157,102 @@ class MetaLikelihoodModel:
         else:
             raise ValueError(f"Unknown modality index: {modality_idx}")
 
-    def _build_preferences(self, scale = 1.0):
 
+    def _build_preferences(self, observations = None, scale = 1.0):
+        if observations is not None:
+            beta = self.compute_beta(observations)*0 + 1
+        else:
+            beta = 1
         preferences_dict = {}
 
         # Preference for divergence (modality 0)
-        div_grid = np.linspace(self.div_min, self.div_max, 100)
-        normalized_div = (div_grid - self.div_min) / (self.div_max - self.div_min)  # Normalize to [0, 1]
-        midpoint = 0.3  # Set midpoint at 0.5 (500 ms), which is the critical threshold in the data 
-        steepness = 5.0  
-        C_div = 1 / (1 + np.exp(-steepness * (normalized_div - midpoint)))
+        #infog_proxy_grid = np.linspace(self.infog_proxy_min, self.infog_proxy_max, 100)
+        #normalized_div = (infog_proxy_grid - self.infog_proxy_min) / (self.infog_proxy_max - self.infog_proxy_min)  # Normalize to [0, 1]
+        #midpoint = 0.03  # Set midpoint at 0.5 (500 ms), which is the critical threshold in the data 
+        #steepness = 5.0  
+        #C_infog_proxy = 1 / (1 + np.exp(-steepness * (normalized_div - midpoint)))
 
         # Scale it massively. When this gate opens, it must dominate everything else.
-        C_div = C_div * 50.0 
+        #C_infog_proxy = C_infog_proxy * 50.0 
 
-        C_div_probs = np.exp(C_div - np.max(C_div))
-        C_div_probs /= C_div_probs.sum()
-        preferences_dict[0] = np.log(C_div_probs*0 + self.eps)
+        #C_infog_proxy_probs = np.exp(C_infog_proxy - np.max(C_infog_proxy))
+        #C_infog_proxy_probs /= C_infog_proxy_probs.sum()
+        preferences_dict[0] = np.log(self.eps)
 
         if self.pref_dep is not None:
-            joint = self.pref_dep[0]  # (0, 1) -> Info Gain and Accuracy
-            grid_0 = self.get_o_grid(joint[0]) # Info Gain grid (0 to 3)
-            grid_1 = self.get_o_grid(joint[1]) # Accuracy grid (-3 to 0)
-            X, Y = np.meshgrid(grid_0, grid_1, indexing='ij')
 
-            # 1. Define the ideal target coordinates (Bottom-Right: Max IG, Min Accuracy)
-            target_x = 0.4   # Max Info Gain
-            target_y = -1.0  # Min Accuracy (Your preferred state)
+            joint = self.pref_dep[0]
+            complexity = np.arange(100)
+            pred_error = np.arange(100)
+            C, P = np.meshgrid(complexity, pred_error, indexing='ij')
+            C_norm = C / (C.max() + 1e-8)
+            P_norm = P / (P.max() + 1e-8)
+            P_centered = P_norm
+            threshold = 0.4
+            gain = np.tanh(5 * (C_norm - threshold))
+            beta = 0.5
+            C_joint = -beta * C_norm * P_centered
 
-            # 2. Calculate the distance of every grid point from this target peak
-            # Squaring the distances creates a perfectly circular/radial drop-off
-            distance_squared = (X - target_x)**2 + (Y - target_y)**2
-
-            # 3. Invert the distance so closer to target = higher preference value
-            C_joint = 10 * scale * (-distance_squared)
-
-            # Softmax conversion stays exactly the same
-            C_joint_probs = np.exp(C_joint - np.max(C_joint))
-            C_joint_probs /= C_joint_probs.sum()
+            C_joint_probs = self._softmax(C_joint.flatten(), gamma=1.0).reshape(C_joint.shape)
             preferences_dict[joint] = np.log(C_joint_probs + self.eps)
         else:
             # ------------------------------------------------------------------
             # 1. Prediction error: Scaled down initially
             # ------------------------------------------------------------------
+            # Assuming err_grid is already defined (length 100)
             err_grid = np.linspace(self.err_min, self.err_max, 100)
+            
+            # 1. Create a steep drop-off centered around index 20
+            # We map the 100-step grid to an index-based array to easily target "index 20"
+            x = np.arange(100) 
+            center_index = 5  # Centers the inflection point near index 20-25
+            steepness = 0.1   # Controls how rapidly it plunges after index 20
 
-            # Linear decay from 0 to -5
-            C_err = -1.0 * (
-                (err_grid - self.err_min) /
-                (self.err_max - self.err_min)
-            )
+            # 2. Use a negative sigmoid shape for C_err
+            C_err = -1 / (1 + np.exp(-steepness * (x - center_index)))
 
-            C_err_probs = np.exp(C_err - np.max(C_err))
-            C_err_probs /= C_err_probs.sum()
+            # 3. Scale C_err to control the overall vertical span of the log curve
+            # A larger multiplier creates a larger gap between the start and end values
+            if observations is not None:
+                C_err = beta * C_err
+            else:
+                C_err = beta * C_err
+
+
+            # 4. Your original exponentiation, normalization, and log steps
+            #C_err_probs = np.exp(C_err - np.max(C_err))
+            #C_err_probs /= C_err_probs.sum()
+
+            C_err_probs = self._softmax(C_err.flatten(), gamma=1.0).reshape(C_err.shape)
 
             preferences_dict[1] = np.log(C_err_probs + self.eps)
+        
 
         
 
         # ------------------------------------------------------------------
         # 3. Latency: Highly sensitive cost
         # ------------------------------------------------------------------
-        lat_grid = np.linspace(self.lat_min, self.lat_max, 100)
-        C_lat = -(lat_grid/1000)**1.5  # no preference
-        C_lat_probs = np.exp(C_lat - np.max(C_lat))
-        C_lat_probs /= C_lat_probs.sum()
+        # 1. Create a 100-step grid indices
+        x = np.arange(100) 
+
+        # 2. Define the shift point where it begins to fall faster
+        delay_index = 5  
+
+        # 3. Create a continuous, multi-slope curve
+        # Start with a gentle, slight decrease from the very beginning
+        initial_slope = -0.005
+        C_lat = initial_slope * x
+
+        # 4. After the delay index, add an extra steeper downward slope
+        steep_slope = -0.045
+        C_lat[delay_index:] += steep_slope * (x[delay_index:] - delay_index)
+
+        # 5. Softmax with a low gamma to keep the linear behavior intact
+        gamma = 0.15 
+        C_lat_probs = self._softmax(C_lat * gamma, gamma=1.0)
+
+        # 6. Compute the final log-probabilities
         preferences_dict[2] = np.log(C_lat_probs + self.eps)
         
         #plt.plot(preferences_dict[1])
@@ -206,36 +260,79 @@ class MetaLikelihoodModel:
         #plt.plot(preferences_dict[3])
         #plt.show()
         # Preference for cpu (modality 4)
-        cpu_grid = np.linspace(self.avl_cpu_min, self.avl_cpu_max, 100)
-        C_cpu = cpu_grid  # no preference
-        C_cpu_probs = np.exp(C_cpu - np.max(C_cpu))
-        C_cpu_probs /= C_cpu_probs.sum()
-        preferences_dict[3] = np.log(C_cpu_probs*0 + self.eps)
-
+        #cpu_grid = np.linspace(self.avl_cpu_min, self.avl_cpu_max, 100)
+        #C_cpu = cpu_grid  # no preference
+        #C_cpu_probs = np.exp(C_cpu - np.max(C_cpu))
+        #C_cpu_probs /= C_cpu_probs.sum()
+        #C_cpu_probs = self._softmax(C_cpu.flatten(), gamma=1.0).reshape(C_cpu.shape)
+        preferences_dict[3] = np.log(self.eps)
+        self.log_preferences = preferences_dict
         return preferences_dict
+    
+    def compute_beta(self, obs, max_latency_ms=3000.0, max_err=3.0, 
+                    max_complexity=0.3, max_cpu=50.0) -> float:
+        """
+        obs: (context_proxy, prediction_error, inference_latency, cpu_availability)
+        
+        β = 0: very constrained → prefer low resolution
+        β = 1: fully available  → prefer high resolution
+        """
+        
+        # What we CAN spend (headroom)
+        latency_headroom = 1.0 - (obs[2] / max_latency_ms)  # high latency → low headroom
+        cpu_headroom     = 1.0 - (obs[3] / max_cpu)          # high cpu use → low headroom
+        
+        headroom = (np.clip(latency_headroom, 0.0, 1.0) + 
+                    np.clip(cpu_headroom,     0.0, 1.0)) / 2.0
+        
+        # What we NEED to spend (pressure toward higher resolution)
+        error_pressure   = np.clip(obs[1] / max_err,        0.0, 1.0)  # high error → need more
+        context_pressure = np.clip(obs[0] / max_complexity, 0.0, 1.0)  # high complexity → need more
+        
+        pressure = (error_pressure + context_pressure) / 2.0
+        
+        # β: only spend if we both CAN and NEED to
+        β = np.clip(headroom * pressure, 0.0, 1.0)
+        
+        return β
 
 
     def likelihoods(self, obs_val, modality_idx):
         if modality_idx == 0:
 
-            exponent = np.exp(-0.5 * ((obs_val - self.mu_div) / self.sigma_div) ** 2)
-            normalization = 1.0 / (self.sigma_div * 2.50662827463)
+            exponent = np.exp(-0.5 * ((obs_val - self.mu_infog_proxy) / self.sigma_infog_proxy) ** 2)
+            normalization = 1.0 / (self.sigma_infog_proxy * np.pi)
+            return exponent * normalization
 
         elif modality_idx == 1:
-
-            exponent = np.exp(-0.5 * ((obs_val - self.mu_err) / self.sigma_err) ** 2)
-            normalization = 1.0 / (self.sigma_err * 2.50662827463)
+            nu = 2.0 * self.alpha_err
+            scale = np.sqrt(
+                self.beta_err
+                * (self.kappa_err + 1.0)
+                / (self.alpha_err * self.kappa_err)
+            )
+            log_p_obs_given_state = scipy.stats.t.pdf(
+                obs_val,
+                df=nu,
+                loc=self.mu_err,
+                scale=scale
+            )
+            return log_p_obs_given_state
 
         elif modality_idx == 2:
 
             exponent = np.exp(-0.5 * ((obs_val - self.mu_lat) / self.sigma_lat) ** 2)
-            normalization = 1.0 / (self.sigma_lat * 2.50662827463)
+            normalization = 1.0 / (self.sigma_lat * np.pi)
+            return exponent * normalization
+        
         elif modality_idx == 3:
 
             exponent = np.exp(-0.5 * ((obs_val - self.mu_cpu) / self.sigma_cpu) ** 2)
-            normalization = 1.0 / (self.sigma_cpu * 2.50662827463)
+            normalization = 1.0 / (self.sigma_cpu * np.pi)
 
-        return exponent * normalization
+            return exponent * normalization
+
+       
     
     def likelihoods_grid_vec(self, o_grid, modality_idx, s_vals):
         """
@@ -263,15 +360,65 @@ class MetaLikelihoodModel:
 
         if modality_idx == 0:
 
-            mu = self.mu_div[s_vals]
-            sigma = self.sigma_div[s_vals]
+            mu = self.mu_infog_proxy[s_vals]
+            sigma = self.sigma_infog_proxy[s_vals]
+            diff = (
+                o_grid[None, :] - mu[:, None]
+            ) / sigma[:, None]
+
+            exponent = np.exp(-0.5 * diff * diff)
+
+            normalization = (
+                1.0 /
+                (sigma[:, None] * 2.50662827463)
+            )
+
+            P = exponent * normalization
+
+            P *= dx
+
+            P /= (
+                P.sum(axis=1, keepdims=True)
+                + self.eps
+            )
+
+            return P.astype(np.float32)
 
         elif modality_idx == 1:
 
             s0, s1 = s_vals
 
-            mu = self.mu_err[s0, s1]
-            sigma = self.sigma_err[s0, s1]
+            m = self.mu_err[s0, s1]
+            kappa = self.kappa_err[s0, s1]
+            alpha = self.alpha_err[s0, s1]
+            beta = self.beta_err[s0, s1]
+
+            nu = 2.0 * alpha
+
+            scale = np.sqrt(
+                beta * (kappa + 1.0)
+                / (alpha * kappa + self.eps)
+            )
+
+            diff = (o_grid[None, :] - m[:, None]) / (scale[:, None] + self.eps)
+
+            base = 1.0 + (diff * diff) / (nu[:, None] + self.eps)
+
+            log_coef = (
+                gammaln((nu + 1.0) / 2.0)
+                - gammaln(nu / 2.0)
+                - 0.5 * (np.log(nu * np.pi) + 2.0 * np.log(scale + self.eps))
+            )
+
+            log_P = log_coef[:, None] - ((nu + 1.0) / 2.0)[:, None] * np.log(base)
+
+            P = np.exp(log_P)
+
+            P *= dx
+
+            P /= (P.sum(axis=1, keepdims=True) + self.eps)
+
+            return P.astype(np.float32)
 
         elif modality_idx == 2:
 
@@ -279,90 +426,142 @@ class MetaLikelihoodModel:
 
             mu = self.mu_lat[s0, s2]
             sigma = self.sigma_lat[s0, s2]
+            diff = (
+                o_grid[None, :] - mu[:, None]
+            ) / sigma[:, None]
+
+            exponent = np.exp(-0.5 * diff * diff)
+
+            normalization = (
+                1.0 /
+                (sigma[:, None] * 2.50662827463)
+            )
+
+            P = exponent * normalization
+
+            P *= dx
+
+            P /= (
+                P.sum(axis=1, keepdims=True)
+                + self.eps
+            )
+
+            return P.astype(np.float32)
 
         elif modality_idx == 3:
 
             mu = self.mu_cpu[s_vals]
             sigma = self.sigma_cpu[s_vals]
+            diff = (
+                o_grid[None, :] - mu[:, None]
+            ) / sigma[:, None]
+
+            exponent = np.exp(-0.5 * diff * diff)
+
+            normalization = (
+                1.0 /
+                (sigma[:, None] * 2.50662827463)
+            )
+
+            P = exponent * normalization
+
+            P *= dx
+
+            P /= (
+                P.sum(axis=1, keepdims=True)
+                + self.eps
+            )
+
+            return P.astype(np.float32)
 
         else:
             raise ValueError("Invalid modality")
 
-        diff = (
-            o_grid[None, :] - mu[:, None]
-        ) / sigma[:, None]
-
-        exponent = np.exp(-0.5 * diff * diff)
-
-        normalization = (
-            1.0 /
-            (sigma[:, None] * 2.50662827463)
-        )
-
-        P = exponent * normalization
-
-        P *= dx
-
-        P /= (
-            P.sum(axis=1, keepdims=True)
-            + self.eps
-        )
-
-        return P.astype(np.float32)
-
-    def update_mu_sigma_vectorized(self, observations, qs, lr=1, threshold=1e-2):
-
+    def update_mu_sigma_vectorized(self, observations, qs, lr=0.1, threshold=1e-2):
+        
         #qs_res = qs[0]
-        qs_res = np.array([0., 0., 1., 0.])
+        qs_res = qs[0]#np.array([0., 0., 1., 0.])
         qs_con = qs[1]
-        qs_cpu = np.array([0., 0., 1.])#qs[2]
+        qs_cpu = qs[2]#np.array([0., 0., 1.])#qs[2]
         for modality_idx in range(4):
+            if modality_idx in [0, 2, 3, 4]: # For these modalities, we do not perform learning.
+                continue
             # 1. Prepare Observations and Beliefs
             obs = observations[0][modality_idx]
             
             if modality_idx == 0:
-                err = obs - self.mu_div
-
+                err = obs - self.mu_infog_proxy
+                """
                 # mean update
-                self.mu_div = self.mu_div + lr * qs_con * err
-
+                self.mu_infog_proxy = np.clip(
+                                            self.mu_infog_proxy + lr * qs_con * err,
+                                            self.infog_proxy_min,
+                                            self.infog_proxy_max
+                                            )
+                """
                 # variance update
-                var = self.sigma_div ** 2
+                var = self.sigma_infog_proxy ** 2
                 var = var + lr * qs_con * ((err ** 2) - var)
 
-                self.sigma_div = np.sqrt(np.clip(var, 1e-6, None))
+                self.sigma_infog_proxy = np.sqrt(np.clip(var, 1e-6, None))
 
             elif modality_idx == 1:
-                err = obs - self.mu_err
                 gamma = np.outer(qs_res, qs_con)
 
-                # mean
-                self.mu_err += lr * gamma * err
+                m_old = self.mu_err
+                kappa_old = self.kappa_err
+                alpha_old = self.alpha_err
+                beta_old = self.beta_err
 
-                # variance
-                var = self.sigma_err ** 2
-                var += lr * gamma * ((err ** 2) - var)
+                kappa_new = kappa_old + gamma
 
-                self.sigma_err = np.sqrt(np.clip(var, 1e-6, None))
+                m_new = (
+                    kappa_old * m_old
+                    + gamma * obs
+                ) / kappa_new
+
+                alpha_new = alpha_old + 0.5 * gamma
+
+                beta_new = beta_old + (
+                    0.5
+                    * (kappa_old * gamma / kappa_new)
+                    * (obs - m_old) ** 2
+                )
+
+                self.mu_err = m_new
+                self.kappa_err = kappa_new
+                self.alpha_err = alpha_new
+                self.beta_err = beta_new
+
+                #print(f"Updated mu_err:\n{self.mu_err}")
 
             elif modality_idx == 2:
                 err = obs - self.mu_lat
                 gamma = np.outer(qs_res, qs_cpu)
 
                 # mean
-                self.mu_lat += lr * gamma * err
+                self.mu_lat = np.clip(
+                                            self.mu_lat + lr * gamma * err,
+                                            self.lat_min,
+                                            self.lat_max
+                                        )
 
                 # variance
                 var = self.sigma_lat ** 2
                 var += lr * gamma * ((err ** 2) - var)
 
                 self.sigma_lat = np.sqrt(np.clip(var, 1e-6, None))
+                #print(f"Updated mu_lat:\n{self.mu_lat}")
 
             elif modality_idx == 3:
                 err = obs - self.mu_cpu
 
                 # mean update
-                self.mu_cpu = self.mu_cpu + lr * qs_cpu * err
+                self.mu_cpu = np.clip(
+                    self.mu_cpu + lr * qs_cpu * err,
+                    self.avl_cpu_min,
+                    self.avl_cpu_max
+                )
 
                 # variance update
                 var = self.sigma_cpu ** 2
@@ -508,7 +707,7 @@ class TaskLikelihoodModel:
         # --- Single-modality preferences ---
         if 2 not in preferences_dict: # Signal Modality
             o_grid = np.linspace(0, 30, 100)
-            def plateau_pref(x, center=20, steepness=0.8):
+            def plateau_pref(x, center=10, steepness=0.25):
                 # This creates a "S" curve that is very flat at the ends
                 return 1 / (1 + np.exp(-steepness * (x - center)))
 
@@ -552,6 +751,7 @@ class TaskLikelihoodModel:
             raise ValueError(f"Unknown modality index: {modality_idx}")
 
     def _precompute_mean_sigma(self):
+        """
         # x_scale and y_scale stay the same
         x_scale = (self.x_max - self.x_min) / self.states_dim[0]
         y_scale = (self.y_max - self.y_min) / self.states_dim[1]
@@ -569,20 +769,40 @@ class TaskLikelihoodModel:
 
         self.x_coords_goal = x_coords.reshape(sqrt_goal_dim, block_size).mean(axis=1)
         self.y_coords_goal = y_coords.reshape(sqrt_goal_dim, block_size).mean(axis=1)
+        """
+        agent_cell_size = self.x_max / self.states_dim[0]  # = 25 cm
+        
+        sqrt_goal_dim = int(np.sqrt(self.states_dim[2]))
+
+        goal_cell_size = self.x_max / sqrt_goal_dim
+
+        self.x_coords_goal = (np.arange(sqrt_goal_dim) + 0.5) * goal_cell_size
+        self.y_coords_goal = (np.arange(sqrt_goal_dim) + 0.5)* goal_cell_size
+        self.x_coords_agent = (np.arange(self.states_dim[0]) + 0.5) * agent_cell_size
+        self.y_coords_agent = (np.arange(self.states_dim[1]) + 0.5) * agent_cell_size
 
         Xc, Yc, Xg, Yg = np.meshgrid(
             self.x_coords_agent, self.y_coords_agent,
             self.x_coords_goal, self.y_coords_goal,
-            indexing='xy'
+            indexing='ij'
         )
 
         d = np.sqrt((Xc - Xg)**2 + (Yc - Yg)**2)
         
-        self.mu_signal = (self.RSI * np.exp(-self.alpha * d)).reshape(
-            self.states_dim[0], self.states_dim[1], -1
-        )
-        self.sigma_signal = np.full((self.states_dim[0], self.states_dim[1], self.states_dim[2]), self.sigma_s, dtype=np.float64)
+        mu = self.RSI * np.exp(-self.alpha * d)
 
+        mu = np.transpose(mu, (0, 1, 3, 2))
+
+        self.mu_signal = mu.reshape(
+            self.states_dim[0],
+            self.states_dim[1],
+            self.states_dim[2]
+        )
+
+        self.sigma_signal = np.full((self.states_dim[0], self.states_dim[1], self.states_dim[2]), self.sigma_s, dtype=np.float64)
+        
+        x_coords = self.x_coords_agent
+        y_coords = self.y_coords_agent
         self.mu_x = x_coords
         self.sigma_x = np.full((self.states_dim[0]), self.sigma_x, dtype=np.float64)
         self.mu_y = y_coords
@@ -590,25 +810,32 @@ class TaskLikelihoodModel:
 
 
         ### for master model (highest resolution) ###
-        block_size_master = int(self.states_dim[0]/np.sqrt(400))  # 20 -> 5
         sqrt_goal_dim_master = int(np.sqrt(400))
 
-        x_coords_goal_master = x_coords.reshape(sqrt_goal_dim_master, block_size_master).mean(axis=1)
-        y_coords_goal_master = y_coords.reshape(sqrt_goal_dim_master, block_size_master).mean(axis=1)
+        goal_cell_size_master = self.x_max / sqrt_goal_dim_master
+
+        x_coords_goal_master = (np.arange(sqrt_goal_dim_master) + 0.5) * goal_cell_size_master
+        y_coords_goal_master = (np.arange(sqrt_goal_dim_master) + 0.5) * goal_cell_size_master
 
         Xc_master, Yc_master, Xg_master, Yg_master = np.meshgrid(
             self.x_coords_agent, self.y_coords_agent,
             x_coords_goal_master, y_coords_goal_master,
-            indexing='xy'
+            indexing='ij'
         )
 
         d_master = np.sqrt((Xc_master - Xg_master)**2 + (Yc_master - Yg_master)**2)
         
-        self.mu_signal_master = (self.RSI * np.exp(-self.alpha * d_master)).reshape(
+        mu_signal_master = (self.RSI * np.exp(-self.alpha * d_master))
+        mu_signal_master = np.transpose(mu_signal_master, (0, 1, 3, 2))
+
+        self.mu_signal_master = mu_signal_master.reshape(
             self.states_dim[0], self.states_dim[1], -1
         )
         self.sigma_signal_master = np.full((self.states_dim[0], self.states_dim[1], 400), self.sigma_s, dtype=np.float64)
 
+        dx = np.gradient(self.mu_signal_master, axis=0)
+        dy = np.gradient(self.mu_signal_master, axis=1)
+        self.fisher_map_signal = (dx**2 + dy**2) / (self.sigma_signal_master**2 + self.eps)     
     
     def likelihoods(self, obs_val, modality_idx, master=False):
         if modality_idx == 0:  # x_obs
@@ -1030,15 +1257,12 @@ class TaskLikelihoodModel:
         print(f"Min Preference Value: {np.min(log_preferences)}")
 
     def compute_sensitivity(self, observation):
-
-        normalized_entropy = 0
-        for modality_idx in [0, 1, 2]:
-            likelihood = self.likelihoods(observation[modality_idx], modality_idx, master=True)
-            normalized_likelihood = likelihood / (likelihood.sum() + self.eps)
-            entropy = -np.sum(normalized_likelihood * np.log(normalized_likelihood + self.eps))
-            normalized_entropy += entropy / np.log(np.size(likelihood) + self.eps)
-
-        return normalized_entropy
+        #### only consider signal modality for sensitivity,
+        # since it's the only one that tells about the env complexity
+        likelihood = self.likelihoods(observation[2], 2, master=True)
+        normalized_likelihood = likelihood / (likelihood.sum() + self.eps)
+        S_m = np.sum(normalized_likelihood * self.fisher_map_signal)
+        return S_m
 
 
 

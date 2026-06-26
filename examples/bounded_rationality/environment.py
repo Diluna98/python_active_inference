@@ -21,7 +21,7 @@ class GridEnvironment:
         self.obstacles = None#self._get_obstacles_dict()
 
 
-        self.visualize = True  # Set to True to enable visualization
+        self.visualize = False  # Set to True to enable visualization
 
     def get_obs_limits(self):
         # Return the limits for each observation modality
@@ -177,6 +177,13 @@ class GridEnvironment:
 
         return rsi
     
+    def get_distance_to_the_goal(self):
+        pos = self.current_position
+        dx = pos[0] - self.goal_position[0]
+        dy = pos[1] - self.goal_position[1]
+        distance = math.sqrt(dx * dx + dy * dy)
+        return distance
+    
     def _initialize_visualization(self):
         if self.visualize:
             self.trajectory = [self.start_position]  # store visited positions
@@ -195,6 +202,24 @@ class GridEnvironment:
             dy = Y - self.goal_position[1]
             distance = np.sqrt(dx**2 + dy**2)
             self.RSI_map = self.RSI * np.exp(-self.alpha * distance)
+            """
+            d0 = 100.0
+            self.n = 2.5
+            self.noise_std = 0.5
+            path_loss = 10 * self.n * np.log10(
+                np.maximum(distance, d0) / d0
+            )
+
+            mean_RSI = self.RSI - path_loss
+
+            noise = np.random.normal(
+                0,
+                self.noise_std,
+                size=mean_RSI.shape
+            )
+
+            self.RSI_map = mean_RSI + noise
+            """
             self._setup_plot()
 
 

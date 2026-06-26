@@ -8,7 +8,7 @@ import time
 import string
 from PyAIF import utils
 from collections.abc import Iterable
-from scipy.special import gammaln, psi
+from scipy.special import digamma, gammaln, loggamma, psi
 import matplotlib.pyplot as plt
 import multiprocessing
 import concurrent.futures
@@ -715,20 +715,21 @@ class ActiveInfAgent:
 
     
     def store_parameters(self):
-        if self.learning_A == True:
-            for modality_idx, modality in enumerate(self.pA):
-                self.pA_prior[modality_idx] = copy.deepcopy(modality)
-                self.pA_complexity[modality_idx] = self.wnorm_new(self.pA_prior[modality_idx])*(self.pA_prior[modality_idx] > 0)
+        if not self.continous_obs:
+            if self.learning_A == True:
+                for modality_idx, modality in enumerate(self.pA):
+                    self.pA_prior[modality_idx] = copy.deepcopy(modality)
+                    self.pA_complexity[modality_idx] = self.wnorm_new(self.pA_prior[modality_idx])*(self.pA_prior[modality_idx] > 0)
 
-        if self.learning_D == True:
-            for factor_idx, factor in enumerate(self.pD):
-                self.pD_prior[factor_idx] = copy.deepcopy(factor)
-                self.pD_complexity[factor_idx] = self.wnorm_new(self.pD_prior[factor_idx])
+            if self.learning_D == True:
+                for factor_idx, factor in enumerate(self.pD):
+                    self.pD_prior[factor_idx] = copy.deepcopy(factor)
+                    self.pD_complexity[factor_idx] = self.wnorm_new(self.pD_prior[factor_idx])
 
-        if self.learning_B == True:
-            for factor_idx, factor in enumerate(self.pB):
-                self.pB_prior[factor_idx] = copy.deepcopy(factor)
-                self.pB_complexity[factor_idx] = self.wnorm_new(self.pB_prior[factor_idx])*(self.pB_prior[factor_idx] > 0)            
+            if self.learning_B == True:
+                for factor_idx, factor in enumerate(self.pB):
+                    self.pB_prior[factor_idx] = copy.deepcopy(factor)
+                    self.pB_complexity[factor_idx] = self.wnorm_new(self.pB_prior[factor_idx])*(self.pB_prior[factor_idx] > 0)            
 
     def infer_states_multiprocessing(self, trial, t):
         num_nmp = self.number_of_msg_passing
@@ -808,7 +809,7 @@ class ActiveInfAgent:
         plt.draw()
         plt.pause(0.01)
     
-    def infer_states(self, trial, t, obs=None, dF_tol=1e-4): 
+    def infer_states(self, trial, t, res_idx=None, obs=None, dF_tol=1e-4): 
         
         if self.deep_inference:
             #implimentation of the MMP
@@ -901,46 +902,204 @@ class ActiveInfAgent:
             #self.update_goal_plot(t, policy_idx=0)
 
         else:
-                self.observations_cache[t%self.learning_window] = copy.deepcopy(obs)
-                qs_prev = copy.deepcopy(self.posteriors)
-                weighted_lik = copy.deepcopy(self.posteriors*0)
-                #log_likelihoods_per_factor = []
-                #for factor in range(self.num_factors):
-                #    log_likelihoods_per_factor.append(
-                #        self.expected_log_likelihood_einsum(obs, factor)
-                #    )
-                # Fixed-point iteration
+                self.observations_cache[t % self.learning_window] = copy.deepcopy(obs)
+
+                # Fixed prior for this timestep
+                fixed_prior = []
+
+                for factor in range(self.num_factors):
+
+                    if t > 0:
+                        fixed_prior.append(
+                            self.posteriors[factor].copy()
+                        )
+                    else:
+                        fixed_prior.append(
+                            self.D[factor].copy()
+                        )
+
+                # Initial posterior estimate
+                qs_current = [
+                    q.copy() for q in fixed_prior
+                ]
+
                 curr_iter = 0
+                previous_vfe = None
                 dF = np.inf
-                previous_vfe = np.inf  # start high
-                while curr_iter < self.num_iterations and dF >= dF_tol:
-                    vfe = 0
-                    factor_orders = [range(self.num_factors - 1, -1, -1), range(self.num_factors)]
+
+                while (
+                    curr_iter < self.num_iterations
+                    and dF >= dF_tol
+                ):
+
+                    base_qs = [
+                        q.copy() for q in qs_current
+                    ]
+
+                    sweep_results = []
+
+                    factor_orders = [
+                        range(self.num_factors),
+                        range(self.num_factors - 1, -1, -1)
+                    ]
+
                     for order in factor_orders:
-                        #qs_prev = copy.deepcopy(self.posteriors)
+
+                        qs_temp = [
+                            q.copy() for q in base_qs
+                        ]
+
                         for factor in order:
-                            log_likelihoods = self.expected_log_likelihood_einsum(obs, factor)#log_likelihoods_per_factor[factor]
-                            log_prior = self.log_stable(qs_prev[factor])
-                            if t == 0:
-                                log_prior = self.log_stable(self.D[factor])
-                            weighted_lik[factor] += log_prior +log_likelihoods
-                            self.posteriors[factor] = self.softmax(weighted_lik[factor])
 
-                    #calculate VFE for each factor to check for convergence
-                    for factor in range(self.num_factors):
-                        log_prior = self.log_stable(qs_prev[factor])
-                        if t == 0:
-                            log_prior = self.log_stable(self.D[factor])
-                        post_entropy = self.posteriors[factor].dot(self.log_stable(self.posteriors[factor]))
-                        prior_entropy = -self.posteriors[factor].dot(self.log_stable(log_prior))
-                        log_likelihoods = self.expected_log_likelihood_einsum(obs, factor)#log_likelihoods_per_factor[factor]
-                        accuracy = self.posteriors[factor].dot(log_likelihoods)
-                        vfe += post_entropy + prior_entropy - accuracy
+                            # Ensure likelihood computation
+                            # sees current beliefs
+                            self.posteriors = qs_temp
 
-                    dF = np.abs(vfe - previous_vfe)
+                            # Fixed / observed factor
+                            if factor == 0:
+
+                                qs_temp[factor] = np.zeros_like(
+                                    qs_temp[factor]
+                                )
+
+                                qs_temp[factor][res_idx] = 1.0
+
+                                continue
+
+                            log_likelihoods = (
+                                self.expected_log_likelihood_einsum(
+                                    obs,
+                                    factor
+                                )
+                            )
+
+                            log_prior = self.log_stable(
+                                fixed_prior[factor]
+                            )
+
+                            weighted = (
+                                log_prior +
+                                log_likelihoods
+                            )
+
+                            weighted -= np.max(
+                                weighted
+                            )
+
+                            qs_temp[factor] = self.softmax(
+                                weighted
+                            )
+
+                            qs_temp[factor] = np.clip(
+                                qs_temp[factor],
+                                EPS_VAL,
+                                1.0
+                            )
+
+                            qs_temp[factor] /= (
+                                qs_temp[factor].sum()
+                            )
+
+                        sweep_results.append(
+                            [q.copy() for q in qs_temp]
+                        )
+
+                    # Average forward and backward sweeps
+                    qs_new = []
+
+                    for factor in range(
+                        self.num_factors
+                    ):
+
+                        q = (
+                            0.5 *
+                            (
+                                sweep_results[0][factor] +
+                                sweep_results[1][factor]
+                            )
+                        )
+
+                        q = np.clip(
+                            q,
+                            EPS_VAL,
+                            1.0
+                        )
+
+                        q /= q.sum()
+
+                        qs_new.append(q)
+
+                    # Compute variational free energy
+                    vfe = 0.0
+
+                    self.posteriors = qs_new
+
+                    for factor in range(
+                        self.num_factors
+                    ):
+
+                        q = np.clip(
+                            qs_new[factor],
+                            EPS_VAL,
+                            1.0
+                        )
+
+                        q /= q.sum()
+
+                        prior = np.clip(
+                            fixed_prior[factor],
+                            EPS_VAL,
+                            1.0
+                        )
+
+                        prior /= prior.sum()
+
+                        log_q = self.log_stable(q)
+
+                        log_prior = self.log_stable(
+                            prior
+                        )
+
+                        log_likelihoods = (
+                            self.expected_log_likelihood_einsum(
+                                obs,
+                                factor
+                            )
+                        )
+
+                        vfe += np.dot(
+                            q,
+                            log_q - log_prior
+                        )
+
+                        vfe -= np.dot(
+                            q,
+                            log_likelihoods
+                        )
+
+                    if previous_vfe is not None:
+
+                        dF = abs(
+                            vfe - previous_vfe
+                        )
+
                     previous_vfe = vfe
+
+                    qs_current = [
+                        q.copy() for q in qs_new
+                    ]
+
                     curr_iter += 1
-                self.posteriors_cache[t%self.learning_window] = copy.deepcopy(self.posteriors)
+
+                self.posteriors = [
+                    q.copy() for q in qs_current
+                ]
+
+                self.posteriors_cache[
+                    t % self.learning_window
+                ] = copy.deepcopy(
+                    self.posteriors
+                )
                 #print(self.posteriors)
                 #print(f"context: {np.argmax(self.posteriors[1])}, context_confidence: {np.max(self.posteriors[1])}")
 
@@ -1140,11 +1299,9 @@ class ActiveInfAgent:
                     )
                 )
 
-        G = (
-            risk_term +
-            ambiguity_term -
-            info_gain_tot
-        )
+        G = (info_gain_tot - risk_term + ambiguity_term)
+            
+
 
         return (
             policy_idx,
@@ -1226,12 +1383,13 @@ class ActiveInfAgent:
 
                 #if self.learning_E:
                 #    info_gain_tot += self.calculate_pE_info_gain(policy_idx)
-                self.G_policy[policy_idx] = risk_term + ambiguity_term - info_gain_tot
+                self.G_policy[policy_idx] = -risk_term -ambiguity_term +info_gain_tot
 
             
             self.update_policy_posterior(trial, t)
         else:
-            risk = []
+            self.external_lm._build_preferences(self.observations_cache[0])
+            self.infog_p = []
             for policy_idx, policy in enumerate(self.policies):
                 info_gain_tot = 0
                 cost = 0
@@ -1246,13 +1404,13 @@ class ActiveInfAgent:
                     info_gain_tot += self.calculate_pB_info_gain(t, policy_idx, qs_next)
                 cost = self._calculate_cost(policy_idx)
 
-                self.G_policy[policy_idx] = risk_term + ambiguity_term - info_gain_tot + cost*0
+                self.G_policy[policy_idx] = -risk_term + ambiguity_term + info_gain_tot*0.5 - cost*0
 
             #print(self.G_policy)
             self.posterior_pi = self.softmax(np.float64(self.log_stable(self.E) + gamma_const*self.G_policy), axis=None)
 
 
-    def _calculate_cost(self, policy_idx, base_change_cost=2):
+    def _calculate_cost(self, policy_idx, base_change_cost=0.15):
         """
         Calculates the cost of choosing a specific policy given the current posterior belief.
         
@@ -1274,7 +1432,7 @@ class ActiveInfAgent:
         # Total cost is proportional to the probability that a change actually occurs
         cost = base_change_cost * prob_of_change
         
-        return np.log(cost + EPS_VAL)
+        return np.log(cost + 0.00001)
 
     '''
     def calculate_pE_info_gain(self, policy_idx):
@@ -1383,13 +1541,73 @@ class ActiveInfAgent:
             return wA_term_policy
         
         else:
-            for modality_idx, modality in enumerate(self.A):
-                wA_mod = self.pA_complexity[modality_idx]
-                expected_obs = self.cell_md_dot_py(modality, qs_fur) 
-                expected_obs_pA = self.cell_md_dot_py(wA_mod, qs_fur)
-                wA_term_policy += expected_obs.dot(expected_obs_pA)
-            return wA_term_policy
+            predicted_gamma = np.outer(qs_fur[0], qs_fur[1])
+            mu_old = self.external_lm.mu_err
+            kappa_old = self.external_lm.kappa_err
+            alpha_old = self.external_lm.alpha_err
+            beta_old = self.external_lm.beta_err
+
+            # === Hypothetical conjugate update using expected sufficient statistics ===
+            # For pure epistemic value we use the *current predictive mean* as expected obs
+            # (this makes the mean-shift term expected zero while still updating precision)
+            obs_expected = mu_old   # key for production-grade approximation
+
+            kappa_new = kappa_old + predicted_gamma
+            alpha_new = alpha_old + 0.5 * predicted_gamma
+            mu_new = (kappa_old * mu_old + predicted_gamma * obs_expected) / kappa_new
+            
+
+            # Your exact beta update
+            beta_new = beta_old + (
+                0.5 * (kappa_old * predicted_gamma / kappa_new) * (obs_expected - mu_old) ** 2
+            )
+
+            # === Compute KL per element (vectorized) ===
+            # Broadcast everything
+            IG_var = self.kl_normal_gamma(
+                mu_new, kappa_new, alpha_new, beta_new,
+                mu_old, kappa_old, alpha_old, beta_old
+            )
+
+            # Expected information gain: weight by predicted responsibility gamma
+            # (this is the Monte-Carlo / expectation approximation over predictive o)
+            IG_mu = 0.5 * np.log((kappa_new + EPS_VAL) / (kappa_old + EPS_VAL))
+
+
+            IG_policy = np.sum(predicted_gamma * (IG_mu + IG_var))
+            self.infog_p.append(IG_policy)
+            return IG_policy
         
+    def kl_normal_gamma(self, mu_new, kappa_new, alpha_new, beta_new,
+                        mu_old, kappa_old, alpha_old, beta_old):
+        """
+        KL[ NG_new (posterior) || NG_old (prior) ] 
+        Univariate case matching your Normal-Gamma / Student's-t setup.
+        """
+        eps = 1e-12
+        alpha_new = np.maximum(alpha_new, eps)
+        alpha_old = np.maximum(alpha_old, eps)
+        beta_new = np.maximum(beta_new, eps)
+        beta_old = np.maximum(beta_old, eps)
+        kappa_new = np.maximum(kappa_new, eps)
+        kappa_old = np.maximum(kappa_old, eps)
+
+        # === Normal component (mean) ===
+        # Weighted squared difference + precision ratio terms
+        term_mu = 0.5 * (alpha_new / beta_new) * kappa_old * (mu_new - mu_old)**2
+        term_kappa = 0.5 * (np.log(kappa_old / kappa_new) - (kappa_old / kappa_new) + 1.0)
+
+        # === Gamma component (precision / variance) ===
+        term_gamma = (
+            alpha_old * np.log(beta_new / beta_old)
+            - (gammaln(alpha_new) - gammaln(alpha_old))
+            + (alpha_new - alpha_old) * digamma(alpha_new)
+            - (beta_new - beta_old) * (alpha_new / beta_new)
+        )
+
+        kl = term_mu + term_kappa + term_gamma
+        return np.clip(kl, 0.0, None)  # Ensure non-negativity for numerical safety
+    
     def calculate_policy_ambiguity_continuous_mc_vec(
         self,
         t,
@@ -1505,12 +1723,10 @@ class ActiveInfAgent:
                     # 6. ambiguity contribution
                     # -----------------------------------
 
-                    ambiguity += (
-                        H_Qo - H_cond
-                    )
+                    ambiguity += H_Qo - H_cond
                     H_Qo_tot += H_cond
             #print(f"Policy {policy_idx} vectorized ambiguity calculation took {end_t - start_t:.2f} seconds and ambiguity value is {ambiguity:.4f}.")
-            return float(ambiguity), predictions, float(H_Qo_tot)
+            return float(ambiguity*0.6), predictions, float(H_Qo_tot)
         
         else:
             ambiguity = 0.0
@@ -1595,11 +1811,9 @@ class ActiveInfAgent:
                 # 6. ambiguity contribution
                 # -----------------------------------
 
-                ambiguity += (
-                    H_Qo - H_cond
-                )
+                ambiguity += H_Qo-H_cond
         #print(f"Policy {policy_idx} vectorized ambiguity calculation took {end_t - start_t:.2f} seconds and ambiguity value is {ambiguity:.4f}.")
-        return float(ambiguity)
+        return float(ambiguity*0.6)
 
     def calculate_policy_ambiguity_continuous_mc(self, t, policy_idx, num_samples=500):
         if not self.deep_inference:
@@ -1811,6 +2025,7 @@ class ActiveInfAgent:
                 # factorized posterior for each factor
                 qs_t = [self.policy_dep_posteriors[policy_idx, timestep, f] for f in range(self.num_factors)]
                 
+                """
                 # --- handle joint modalities ---
                 if self.pref_dep is not None:
 
@@ -1844,27 +2059,26 @@ class ActiveInfAgent:
                         )
 
                         # outer product for all samples
-                        P_joint = (
+                        Q_o_joint = (
                             Py[:, :, None] *
                             Px[:, None, :]
                         )
 
                         # normalize jointly
-                        P_joint /= (
-                            P_joint.sum(axis=(1, 2), keepdims=True)
+                        Q_o_joint /= (
+                            Q_o_joint.sum(axis=(1, 2), keepdims=True)
                             + EPS_VAL
                         )
 
                         C_joint = self.log_preferences_dict[tuple(joint)]
 
+                        Q_o_joint_mean = Q_o_joint.mean(axis=0)
+                        Q_o_joint_mean /= (Q_o_joint_mean.sum() + EPS_VAL)
+                        H_Qo_joint = -np.sum(Q_o_joint_mean * np.log(Q_o_joint_mean + EPS_VAL))
+
                         # direct expectation
-                        risk_joint += np.mean(
-                            np.sum(
-                                P_joint * C_joint[None, :, :],
-                                axis=(1, 2)
-                            )
-                        )
-                
+                        risk_joint += np.mean(np.sum(Q_o_joint * C_joint[None,:,:], axis=(1,2))) + H_Qo_joint*0
+                """
                 # --- handle single modalities ---
                 for m in range(len(o_grids)):
 
@@ -1904,9 +2118,9 @@ class ActiveInfAgent:
 
                     C_o = self.log_preferences_dict[m]
 
-                    risk_single += np.sum(
-                        Q_o * C_o
-                    )
+                    H_Qo = -np.sum(Q_o * np.log(Q_o + EPS_VAL))
+
+                    risk_single += -np.sum(Q_o * C_o) + H_Qo*0
 
             risk_term_policy = risk_joint + risk_single
             #print(f"Joint time: {joint_time:.4f}, Signal time: {signal_time:.4f}")
@@ -1947,26 +2161,25 @@ class ActiveInfAgent:
                         p_samples[m] = P_m
 
                     # outer product for all samples
-                    P_joint = (
-                        p_samples[joint[0]][:, :, None] *  # Modality 0 (Info Gain) -> Axis 1
-                        p_samples[joint[1]][:, None, :]    # Modality 1 (Accuracy)  -> Axis 2
+                    Q_o_joint = (
+                        p_samples[joint[0]][:, :, None] *  # Modality 0 (Info Gain)
+                        p_samples[joint[1]][:, None, :]    # Modality 1 (Accuracy)
                     )
 
                     # normalize jointly
-                    P_joint /= (
-                        P_joint.sum(axis=(1, 2), keepdims=True)
+                    Q_o_joint /= (
+                        Q_o_joint.sum(axis=(1, 2), keepdims=True)
                         + EPS_VAL
                     )
 
                     C_joint = self.log_preferences_dict[tuple(joint)]
 
+                    Q_o_joint_mean = Q_o_joint.mean(axis=0)
+                    Q_o_joint_mean /= (Q_o_joint_mean.sum() + EPS_VAL)
+                    H_Qo_joint = -np.sum(Q_o_joint_mean * np.log(Q_o_joint_mean + EPS_VAL))
+
                     # direct expectation
-                    risk_joint += np.mean(
-                        np.sum(
-                            P_joint * C_joint[None, :, :],
-                            axis=(1, 2)
-                        )
-                    )
+                    risk_joint += -np.mean(np.sum(Q_o_joint * C_joint[None,:,:], axis=(1,2))) + H_Qo_joint*0
             
             # --- handle single modalities ---
             for m in range(len(o_grids)):
@@ -2007,9 +2220,9 @@ class ActiveInfAgent:
 
                 C_o = self.log_preferences_dict[m]
 
-                risk_single += np.sum(
-                    Q_o * C_o
-                )
+                H_Qo = -np.sum(Q_o * np.log(Q_o + EPS_VAL))
+
+                risk_single += -np.sum(Q_o * C_o) + H_Qo*0
 
         risk_term_policy = risk_joint + risk_single
         return risk_term_policy
@@ -2809,7 +3022,7 @@ class ActiveInfAgent:
                     if factor == 2 and modal_idx == 2:
                         precision = 1
                     if factor == 1 and modal_idx == 1:
-                        precision = 1
+                        precision = 0.1
                     if factor == 0 and modal_idx == 1:
                         precision = 1
 
@@ -3219,7 +3432,7 @@ class ActiveInfAgent:
         # shape: (num_policies,)
         surprise += -np.log(predictions_for_m0[:, obs_idx] + 1e-12)
         
-        return np.mean(surprise)#surprise.dot(self.posterior_pi)  # shape: (num_policies,) — surprise per policy
+        return np.mean(surprise)            #.dot(self.posterior_pi)  # shape: (num_policies,) — surprise per policy
     
     def get_posterior_variance(self, t):
         var = 0
@@ -3265,9 +3478,8 @@ class ActiveInfAgent:
 
     def get_stats(self, t):
         stats = {
-            'pred_divergence': self.get_model_spread(t),
-            'mean_surprise': self.get_observation_divergence(t),
-            'spatial_fi': self.get_spatial_fi(t)
+            'info_gain_proxy': self.external_lm.compute_sensitivity(self.observations[t]),
+            'mean_surprise': self.get_observation_divergence(t)
         }
         return stats
     
