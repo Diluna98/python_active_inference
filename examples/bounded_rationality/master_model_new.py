@@ -350,7 +350,7 @@ if __name__ == "__main__":
     #NUM_SIMULATIONS = 1
     MODEL_SIZES = [20]
     RES_SIZES = [2, 5, 10, 20]  # Different resolutions to test 
-
+    GOAL_LOCATIONS = [(212.5, 312.5)]#[(375, 375), (250, 450), (425, 325), (212.5, 312.5)]
     # Constants
     TOTAL_SPACE = 500
     GRID_SIZE = MODEL_SIZES[0] # e.g., 10
@@ -365,142 +365,194 @@ if __name__ == "__main__":
 
     #sample_locations = random.sample(all_locations, 500)
     #sample_locations = list(set(sample_locations) | {(12.5, 12.5)})
-    for res_size in RES_SIZES:
-        with open(f"ploting_data_cpu_load_minimum_{res_size}.jsonl", "w") as f:
-            print(f"\n--- PROFILING RESOLUTION: {res_size}x{res_size} ---")
-            
-            B, D, num_states, num_obs, num_controls, control_fac_idx, Temp_horizon = create_generative_model(MODEL_SIZES[0], res_size)
-            
-            current_res = res_size
-            
-            meta_agent = MetaAgent()
-
-            mean_curiosity = []
-            latency_list = []
-            meta_latency_list = []
-            pred_err_list = []
-            distance_to_goal = []
-
-            #plotter = RuntimeCuriosityPlotter(total_trials=50)
-            for trial in range(TRIALS_PER_RES):
-                #sample_location = random.sample(all_locations, 1)
-                env = GridEnvironment(size=MODEL_SIZES[0], s_x=12.5, s_y=12.5)
-                obs_limits = env.get_obs_limits()
-
-                policies = utils.construct_policies(num_states, num_controls, Temp_horizon-1, control_fac_idx)
-                policies = filter_diagonal_policies(policies)
-                ainf_agent = ActiveInfAgent(states_dim=num_states, obs_dim=num_obs, controls_dim=num_controls,
-                                            controlable_states=control_fac_idx, planning_depth=Temp_horizon,
-                                            number_of_msg_passing=10, trials=TRIALS_PER_RES, B=B, D=D,
-                                            policies=policies, policy_pruning=False, learning_A=False, learning_D=False, learning_B=False, learning_C=False,
-                                            continous_obs=True, lm_name = "task", mod_dependency=[[0], [1], [0, 1, 2]], pref_dep=[[0, 1]], obs_limits=obs_limits, learning_rate=0.1, forgeting_rate=0.99,
-                                            obstacles_dic=None, action_selection="deterministic")
-
-                obs, done = env.reset(random_start=False)
-                #ainf_agent.store_parameters()
-                #ainf_agent.normalize_columns()
-                ainf_agent.initialize_variables()
-
-                latency_per_trial = []
-                meta_latency_per_trial = []
-                pred_err_per_trial = []
-                curiosity_per_trial = []
-                for t in range(STEPS_PER_TRIAL):
-                    try:
-                        ainf_agent.observations[t] = np.array(obs)
-
-                        # Start Timer for Wall-clock observation
-                        start_time = time.perf_counter()
-                        ainf_agent.infer_states(trial, t)
-                        # End Timer
-                        end_time = time.perf_counter()
-                        inference_duration = (end_time - start_time) * 1000 # Convert to ms
-                        latency_per_trial.append(inference_duration)
-                        ainf_agent.infer_policies_parallel(trial, t)
-
-                        chosen_action, action_list = ainf_agent.choose_action(trial, t)
-
-                        if chosen_action is not None:
-                            if t % 3 == 0:
-                                # Get Stats
-                                stats = ainf_agent.get_stats(t)
-
-                                info_gain_proxy = stats.get('info_gain_proxy', [0])
-                                info_gain_proxy = min(info_gain_proxy, 2)
-
-                                mean_surprise = stats.get('mean_surprise', [0])
-                                pred_err_per_trial.append(mean_surprise)
-
-                                cpu_availability = cpu_monitor(current_res, inference_duration)
-
-                                
-                                start_time = time.perf_counter()
-                                meta_action = meta_agent.run_meta_inference(RES_SIZES.index(current_res), (info_gain_proxy, mean_surprise, inference_duration, cpu_availability))
-                                end_time = time.perf_counter()
-
-                                meta_inference_duration = (end_time - start_time) * 1000 -50# Convert to ms
-                                meta_latency_per_trial.append(meta_inference_duration)
-
-                                # Returns an array of 4 mean values, one for each policy row
-                                curiosity_per_trial.append(np.array(meta_agent.meta_agent.infog_p))
-                                
-                                #print(f"inference_latency: {inference_duration:.2f} ms")
-                                #meta_action = np.random.choice([0, 1, 2, 3, 4], p=[0.15, 0.15, 0.15, 0.15, 0.4])
-                                if not meta_action == 4:
-                                    if not current_res == RES_SIZES[meta_action]:
-                                        #change_model(ainf_agent, num_states, num_controls, meta_action)
-                                        #current_res = RES_SIZES[meta_action]
-                                        continue
-
-                                data = {
-                                            "mu_err": meta_agent.meta_agent.external_lm.mu_err.tolist(),
-                                            "kappa_err": meta_agent.meta_agent.external_lm.kappa_err.tolist(),
-                                            "alpha_err": meta_agent.meta_agent.external_lm.alpha_err.tolist(),
-                                            "beta_err": meta_agent.meta_agent.external_lm.beta_err.tolist(),
-                                            "mu_lat": meta_agent.meta_agent.external_lm.mu_lat.tolist(),
-                                            "sigma_lat": meta_agent.meta_agent.external_lm.sigma_lat.tolist()
-                                        }
-                                
-                                with open("external_lm_params.json", "w") as e:
-                                    json.dump(data, e)
-                            
-                            a_action = tuple(int(x) for x in chosen_action[:2])
-                            obs, done = env.step(a_action)
-                            #done = False
-                            if done:
-                                print(f"Goal reached at time {t} with resolution {res_size}x{res_size}!")
-                                break
-                        if t%Temp_horizon == Temp_horizon - 1:
-                            ainf_agent.perform_learning(trial)
-                            #ainf_agent.store_parameters()
-                            ainf_agent.initialize_variables()
-                        ainf_agent.step_time(t)
-                        #t += 1
-            
-                    except KeyboardInterrupt:
-                        print(f"Stopping at t={t}")
-                        break
-
-                # --- END OF TRIAL: UPDATE RUNTIME MATRIX ---
-                #plotter.update(trial_num=trial, curiosity_trial=np.mean(curiosity_trial, axis=0))
-                print(f"Trial {trial}/{TRIALS_PER_RES} Completed. Mean Curiosity: {np.mean(curiosity_per_trial, axis=0)}")
-                mean_curiosity.append(np.mean(curiosity_per_trial, axis=0))
-                latency_list.append(np.array(latency_per_trial))
-                pred_err_list.append(np.array(pred_err_per_trial))
-                meta_latency_list.append(np.array(meta_latency_per_trial))
-                distance_to_goal.append(env.get_distance_to_the_goal())
-
-            ploting_data_cpu_load_minimum = {
-                "Model": f"{res_size}x{res_size}",
-                "distance_to_goal": [np.array(trial).tolist() for trial in distance_to_goal],
-                "latency": [np.array(trial).tolist() for trial in latency_list], 
-                "prediction_error": [np.array(trial).tolist() for trial in pred_err_list],
-                "meta_latency": [np.array(trial).tolist() for trial in meta_latency_list],
+    for goal in GOAL_LOCATIONS:
+        for res_size in [2]:
+            with open(f"Artifacts_cpu_load_meadium_{goal[0]}_{goal[1]}_Ours.jsonl", "w") as f:
+                print(f"\n--- PROFILING RESOLUTION: {res_size}x{res_size} ---")
                 
-                "mean_curiosity": [np.array(trial).tolist() for trial in mean_curiosity]
-            }
-            
-            f.write(json.dumps(ploting_data_cpu_load_minimum) + "\n")
+                B, D, num_states, num_obs, num_controls, control_fac_idx, Temp_horizon = create_generative_model(MODEL_SIZES[0], res_size)
+                
+                current_res = res_size
+                
+                meta_agent = MetaAgent()
 
-        print(f"Saved: {res_size}x{res_size}!")
+
+                latency_list = []
+                meta_latency_list = []
+                pred_err_list = []
+                distance_to_goal_list = []
+                meta_obs_list = []
+                task_obs_list = []
+                meta_action_confidance_list = []
+                task_minimum_vfe_list = []
+                meta_risk_list = []
+                meta_ambiguity_list = []
+                meta_info_gain_list = []
+
+
+                #plotter = RuntimeCuriosityPlotter(total_trials=50)
+                for trial in range(TRIALS_PER_RES):
+                    B, D, num_states, num_obs, num_controls, control_fac_idx, Temp_horizon = create_generative_model(MODEL_SIZES[0], res_size)
+                
+                    current_res = res_size
+                    #sample_location = random.sample(all_locations, 1)
+                    env = GridEnvironment(size=MODEL_SIZES[0], s_x=12.5, s_y=12.5, g_x=goal[0], g_y=goal[1], visualize=False)
+                    obs_limits = env.get_obs_limits()
+                    policies = utils.construct_policies(num_states, num_controls, Temp_horizon-1, control_fac_idx)
+                    policies = filter_diagonal_policies(policies)
+                    ainf_agent = ActiveInfAgent(states_dim=num_states, obs_dim=num_obs, controls_dim=num_controls,
+                                                controlable_states=control_fac_idx, planning_depth=Temp_horizon,
+                                                number_of_msg_passing=10, trials=TRIALS_PER_RES, B=B, D=D,
+                                                policies=policies, policy_pruning=False, learning_A=False, learning_D=False, learning_B=False, learning_C=False,
+                                                continous_obs=True, lm_name = "task", mod_dependency=[[0], [1], [0, 1, 2]], pref_dep=[[0, 1]], obs_limits=obs_limits, learning_rate=0.1, forgeting_rate=0.99,
+                                                obstacles_dic=None, action_selection="deterministic")
+
+                    obs, done = env.reset(random_start=False)
+                    #ainf_agent.store_parameters()
+                    #ainf_agent.normalize_columns()
+                    ainf_agent.initialize_variables()
+
+                    latency_per_trial = []
+                    meta_latency_per_trial = []
+                    pred_err_per_trial = []
+
+                    meta_obs_per_trial = []
+                    task_obs_per_trial = []
+                    meta_action_confidance_per_trial = []
+                    task_minimum_vfe_per_trial = []
+                    meta_risk_policies_per_trial = []
+                    meta_ambiguity_policies_per_trial = []
+                    meta_info_gain_policies_per_trial = []
+                    distance_to_goal_per_trial = []
+                    for t in range(STEPS_PER_TRIAL):
+                        try:
+                            ainf_agent.observations[t] = np.array(obs)
+
+                            # Start Timer for Wall-clock observation
+                            start_time = time.perf_counter()
+                            ainf_agent.infer_states(trial, t)
+                            # End Timer
+                            end_time = time.perf_counter()
+                            inference_duration = (end_time - start_time) * 1000 # Convert to ms
+                            latency_per_trial.append(inference_duration)
+                            ainf_agent.infer_policies_parallel(trial, t)
+
+                            chosen_action, action_list = ainf_agent.choose_action(trial, t)
+
+                            if chosen_action is not None:
+                                #chosen_action[0] = 0
+                                #chosen_action[1] = 2
+                                if t % 3 == 0:
+                                    # Get Stats
+                                    stats = ainf_agent.get_stats(t)
+
+                                    info_gain_proxy = stats.get('info_gain_proxy', [0])
+                                    info_gain_proxy = min(info_gain_proxy, 2)
+
+                                    mean_surprise = stats.get('mean_surprise', [0])
+                                    pred_err_per_trial.append(mean_surprise)
+
+                                    cpu_availability = cpu_monitor(current_res, inference_duration)
+
+                                    
+                                    start_time = time.perf_counter()
+                                    meta_action = meta_agent.run_meta_inference(RES_SIZES.index(current_res), (info_gain_proxy, mean_surprise, inference_duration, cpu_availability))
+                                    end_time = time.perf_counter()
+                                    print(meta_agent.meta_agent.posteriors)
+                                    print(mean_surprise)
+                                    meta_inference_duration = (end_time - start_time) * 1000 -50# Convert to ms
+                                    meta_latency_per_trial.append(meta_inference_duration)
+
+                                    meta_obs_per_trial.append((info_gain_proxy, mean_surprise, inference_duration, cpu_availability))
+                                    task_obs_per_trial.append(obs)
+                                    meta_action_confidance_per_trial.append(meta_agent.meta_agent.posterior_pi)
+                                    task_minimum_vfe_per_trial.append(np.max(ainf_agent.F_policy))
+                                    meta_risk_policies_per_trial.append(meta_agent.meta_agent.risk)
+                                    meta_ambiguity_policies_per_trial.append(meta_agent.meta_agent.ambiguity)
+                                    meta_info_gain_policies_per_trial.append(meta_agent.meta_agent.info_gain)
+                                    distance_to_goal_per_trial.append(env.get_distance_to_the_goal())
+
+                                    data = {
+                                                "mu_err": meta_agent.meta_agent.external_lm.mu_err.tolist(),
+                                                "kappa_err": meta_agent.meta_agent.external_lm.kappa_err.tolist(),
+                                                "alpha_err": meta_agent.meta_agent.external_lm.alpha_err.tolist(),
+                                                "beta_err": meta_agent.meta_agent.external_lm.beta_err.tolist(),
+                                                "mu_lat": meta_agent.meta_agent.external_lm.mu_lat.tolist(),
+                                                "sigma_lat": meta_agent.meta_agent.external_lm.sigma_lat.tolist()
+                                            }
+                                    
+                                    with open("external_lm_params.json", "w") as e:
+                                        json.dump(data, e)
+                                    
+                                    #print(f"inference_latency: {inference_duration:.2f} ms")
+                                    #meta_action = np.random.choice([0, 1, 2, 3, 4], p=[0.25, 0.25, 0.25, 0, 0.25])
+                                    if not meta_action == 4:
+                                        if not current_res == RES_SIZES[meta_action]:
+                                            change_model(ainf_agent, num_states, num_controls, meta_action)
+                                            current_res = RES_SIZES[meta_action]
+                                            continue
+                                
+                                a_action = tuple(int(x) for x in chosen_action[:2])
+                                obs, done = env.step(a_action)
+                                #done = False
+                                if done:
+                                    print(f"Goal reached at time {t} with resolution {current_res}x{current_res}!")
+                                    break
+                            if t%Temp_horizon == Temp_horizon - 1:
+                                ainf_agent.perform_learning(trial)
+                                #ainf_agent.store_parameters()
+                                ainf_agent.initialize_variables()
+                                """
+                                data_task = {
+                                    "mu_x": ainf_agent.external_lm.mu_x.tolist(),
+                                    "sigma_x": ainf_agent.external_lm.sigma_x.tolist(),
+                                    "mu_y": ainf_agent.external_lm.mu_y.tolist(),
+                                    "sigma_y": ainf_agent.external_lm.sigma_y.tolist(),
+                                    "mu_signal": ainf_agent.external_lm.mu_signal.tolist(),
+                                    "sigma_signal": ainf_agent.external_lm.sigma_signal.tolist()
+                                }
+                        
+                                with open(f"external_lm_params_task_{res_size}.json", "w") as v:
+                                    json.dump(data_task, v)
+                                """
+                                
+                            ainf_agent.step_time(t)
+                            
+                
+                        except KeyboardInterrupt:
+                            print(f"Stopping at t={t}")
+                            break
+
+                    # --- END OF TRIAL: UPDATE RUNTIME MATRIX ---
+                    #plotter.update(trial_num=trial, curiosity_trial=np.mean(curiosity_trial, axis=0))
+                    print(f"Trial {trial}/{TRIALS_PER_RES} Completed")
+                    latency_list.append(np.array(latency_per_trial))
+                    pred_err_list.append(np.array(pred_err_per_trial))
+                    meta_latency_list.append(np.array(meta_latency_per_trial))
+                    distance_to_goal_list.append(np.array(distance_to_goal_per_trial))
+                    meta_obs_list.append(np.array(meta_obs_per_trial))
+                    task_obs_list.append(np.array(task_obs_per_trial))
+                    meta_action_confidance_list.append(np.array(meta_action_confidance_per_trial))
+                    task_minimum_vfe_list.append(np.array(task_minimum_vfe_per_trial))
+                    meta_risk_list.append(np.array(meta_risk_policies_per_trial))
+                    meta_ambiguity_list.append(np.array(meta_ambiguity_policies_per_trial))
+                    meta_info_gain_list.append(np.array(meta_info_gain_policies_per_trial))
+
+                artifacts = {
+                    "distance_to_goal": [np.array(trial).tolist() for trial in distance_to_goal_list],
+                    "latency": [np.array(trial).tolist() for trial in latency_list], 
+                    "prediction_error": [np.array(trial).tolist() for trial in pred_err_list],
+                    "meta_latency": [np.array(trial).tolist() for trial in meta_latency_list],
+                    "meta_obs": [np.array(trial).tolist() for trial in meta_obs_list],
+                    "task_obs": [np.array(trial).tolist() for trial in task_obs_list],
+                    "meta_action_confidance": [np.array(trial).tolist() for trial in meta_action_confidance_list],
+                    "task_minimum_vfe": [np.array(trial).tolist() for trial in task_minimum_vfe_list],
+                    "meta_risk_policies": [np.array(trial).tolist() for trial in meta_risk_list],
+                    "meta_ambiguity_policies": [np.array(trial).tolist() for trial in meta_ambiguity_list],
+                    "meta_info_gain_policies": [np.array(trial).tolist() for trial in meta_info_gain_list]
+                }
+                
+                f.write(json.dumps(artifacts) + "\n")
+
+            print(f"Saved: Ours!")
         

@@ -1,5 +1,6 @@
 import json
 import scipy
+import os
 from scipy.stats import t
 from time import time
 from matplotlib import scale
@@ -58,8 +59,6 @@ class MetaLikelihoodModel:
         self.avl_cpu_max = 100
         K = 4 #num_models
         C = 4 #num_contexts
-        with open("external_lm_params.json", "r") as f:
-            data = json.load(f)
 
         self.mu_infog_proxy = np.array([0.02, 0.1, 0.5, 3.0], dtype=np.float64)
         self.sigma_infog_proxy = np.array([0.02, 0.015, 0.08, 0.4], dtype=np.float64)
@@ -73,6 +72,16 @@ class MetaLikelihoodModel:
         
         self.mu_cpu = np.array([20.0, 57.5, 87.5], dtype=np.float64)
         self.sigma_cpu = np.array([8.0, 10.0, 8.0], dtype=np.float64)
+
+        self.mu_lat = np.array([[345.4611402324012, 212.06504907070533, 97.75745839526523],
+                           [461.83887858980273, 294.207785483278, 162.47528079580397],
+                           [887.9391739842889, 642.937045209683, 284.2920225357491],
+                           [8922.938320009658, 6692.203740007244, 2230.7345800024145]])
+        
+        self.sigma_lat = np.array([[31.749016636974176, 32.33042287905581, 17.939712506023877],
+                                  [27.483363790215606, 25.450471430803248, 15.299318569457654],
+                                  [126.85295569138574, 64.19366785976668, 39.97327149070371],
+                                  [466.73980901467763, 350.054856761044, 116.6849522536529]])
         """
         mu_lat_1d = tables["mu_lat"]
         sigma_lat_1d = tables["sigma_lat"]
@@ -92,34 +101,23 @@ class MetaLikelihoodModel:
                 # uncertainty increases with degradation
                 self.sigma_lat[r, u] = sigma_lat_1d[r]* cpu_scale[u]
         """
+        if os.path.exists("external_lm_params.json"):
         
-        self.mu_err = np.array(data["mu_err"])
+            with open("external_lm_params.json", "r") as f:
+                data = json.load(f)
+            self.mu_err = np.array(data["mu_err"])
+            
+            self.kappa_err = np.array(data["kappa_err"])
+            self.alpha_err = np.array(data["alpha_err"])
+            self.beta_err = np.array(data["beta_err"])
+            
+            self.mu_cpu = np.array([20.0, 57.5, 87.5], dtype=np.float64)
+            self.sigma_cpu = np.array([8.0, 10.0, 8.0], dtype=np.float64)
+            
+            self.mu_lat = np.array(data["mu_lat"])
+            self.sigma_lat = np.array(data["sigma_lat"])
         
-        self.kappa_err = np.array(data["kappa_err"])
-        self.alpha_err = np.array(data["alpha_err"])
-        self.beta_err = np.array(data["beta_err"])
         
-        self.mu_cpu = np.array([20.0, 57.5, 87.5], dtype=np.float64)
-        self.sigma_cpu = np.array([8.0, 10.0, 8.0], dtype=np.float64)
-        
-        self.mu_lat = np.array(data["mu_lat"])
-        self.sigma_lat = np.array(data["sigma_lat"])
-        
-
-        """        
-        with open("external_lm_params.json", "r") as f:
-            data = json.load(f)
-
-        
-        self.mu_div = np.array(data["mu_div"])
-        self.sigma_div = np.array(data["sigma_div"])
-        self.mu_err = np.array(data["mu_err"])
-        self.sigma_err = np.array(data["sigma_err"])
-        self.mu_lat = np.array(data["mu_lat"])
-        self.sigma_lat = np.array(data["sigma_lat"])
-        self.mu_cpu = np.array(data["mu_cpu"])
-        self.sigma_cpu = np.array(data["sigma_cpu"])
-        """
         self.pref_dep = [(0, 1)] # joint preference for info gain and accuracy
         self.log_preferences = self._build_preferences()
 
@@ -188,9 +186,9 @@ class MetaLikelihoodModel:
             C_norm = C / (C.max() + 1e-8)
             P_norm = P / (P.max() + 1e-8)
             P_centered = P_norm
-            threshold = 0.4
+            threshold = 0.3
             gain = np.tanh(5 * (C_norm - threshold))
-            beta = 0.5
+            beta = 3
             C_joint = -beta * C_norm * P_centered
 
             C_joint_probs = self._softmax(C_joint.flatten(), gamma=1.0).reshape(C_joint.shape)
@@ -205,7 +203,7 @@ class MetaLikelihoodModel:
             # 1. Create a steep drop-off centered around index 20
             # We map the 100-step grid to an index-based array to easily target "index 20"
             x = np.arange(100) 
-            center_index = 5  # Centers the inflection point near index 20-25
+            center_index = 4  # Centers the inflection point near index 20-25
             steepness = 0.1   # Controls how rapidly it plunges after index 20
 
             # 2. Use a negative sigmoid shape for C_err
@@ -241,16 +239,16 @@ class MetaLikelihoodModel:
 
         # 3. Create a continuous, multi-slope curve
         # Start with a gentle, slight decrease from the very beginning
-        initial_slope = -0.005
+        initial_slope = -0.02
         C_lat = initial_slope * x
 
         # 4. After the delay index, add an extra steeper downward slope
-        steep_slope = -0.045
+        steep_slope = -0.1
         C_lat[delay_index:] += steep_slope * (x[delay_index:] - delay_index)
 
         # 5. Softmax with a low gamma to keep the linear behavior intact
-        gamma = 0.15 
-        C_lat_probs = self._softmax(C_lat * gamma, gamma=1.0)
+        gamma = 0.1 
+        C_lat_probs = self._softmax(C_lat)
 
         # 6. Compute the final log-probabilities
         preferences_dict[2] = np.log(C_lat_probs + self.eps)
@@ -484,21 +482,21 @@ class MetaLikelihoodModel:
         qs_con = qs[1]
         qs_cpu = qs[2]#np.array([0., 0., 1.])#qs[2]
         for modality_idx in range(4):
-            if modality_idx in [0, 2, 3, 4]: # For these modalities, we do not perform learning.
+            if modality_idx in [1]: # For these modalities, we do not perform learning.
                 continue
             # 1. Prepare Observations and Beliefs
             obs = observations[0][modality_idx]
             
             if modality_idx == 0:
                 err = obs - self.mu_infog_proxy
-                """
+                
                 # mean update
                 self.mu_infog_proxy = np.clip(
                                             self.mu_infog_proxy + lr * qs_con * err,
                                             self.infog_proxy_min,
                                             self.infog_proxy_max
                                             )
-                """
+                
                 # variance update
                 var = self.sigma_infog_proxy ** 2
                 var = var + lr * qs_con * ((err ** 2) - var)
@@ -619,6 +617,7 @@ class TaskLikelihoodModel:
         self.log_preferences = self._build_preferences()
         #self._plot_joint_preferences(self.log_preferences)
         #self.init_pref_plot()
+        #self._precompute_mean_sigma_from_data(int(np.sqrt(self.states_dim[2])))
         self._precompute_mean_sigma() 
         #self.compute_sensitivity_map()
         #self._plot_signal_expectation_map((7, 1))
@@ -749,6 +748,26 @@ class TaskLikelihoodModel:
 
         else:
             raise ValueError(f"Unknown modality index: {modality_idx}")
+
+    def _precompute_mean_sigma_from_data(self, size):
+        file_name = f"external_lm_params_task_{size}.json"
+        with open(file_name, "r") as x:
+            data = json.load(x)
+            self.mu_x = np.array(data["mu_x"])
+            self.sigma_x = np.array(data["sigma_x"])
+            self.mu_y = np.array(data["mu_y"])
+            self.sigma_y = np.array(data["sigma_y"])
+            self.mu_signal = np.array(data["mu_signal"])
+            self.sigma_signal = np.array(data["sigma_signal"])
+
+        with open("external_lm_params_task_20.json", "r") as m:
+            data_20 = json.load(m)
+            self.mu_signal_master = np.array(data_20["mu_signal"])
+            self.sigma_signal_master = np.array(data_20["sigma_signal"])
+
+        dx = np.gradient(self.mu_signal_master, axis=0)
+        dy = np.gradient(self.mu_signal_master, axis=1)
+        self.fisher_map_signal = (dx**2 + dy**2) / (self.sigma_signal_master**2 + self.eps) 
 
     def _precompute_mean_sigma(self):
         """
@@ -1010,7 +1029,7 @@ class TaskLikelihoodModel:
         qs_x = np.array([b[0] for b in bayesian_mod_avg])
         qs_y = np.array([b[1] for b in bayesian_mod_avg])
         qs_goal = np.array([b[2] for b in bayesian_mod_avg])
-        for modality_idx in range(3):
+        for modality_idx in [2]:
             # 1. Prepare Observations and Beliefs
             obs = np.array([o[modality_idx] for o in observations.values()])
 

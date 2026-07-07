@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import math
 
 class GridEnvironment:
-    def __init__(self, size, workspace_length=500, workspace_width=500, s_x=25/2, s_y=25/2, g_x=237.5, g_y=462.5, RSI=30, alpha=0.01):
+    def __init__(self, size, workspace_length=500, workspace_width=500, s_x=25/2, s_y=25/2, g_x=225, g_y=475, RSI=30, alpha=0.01, visualize=False):
         self.grid_size = size
         self.workspace_length = workspace_length
         self.workspace_width = workspace_width
@@ -21,7 +21,7 @@ class GridEnvironment:
         self.obstacles = None#self._get_obstacles_dict()
 
 
-        self.visualize = False  # Set to True to enable visualization
+        self.visualize = visualize  # Set to True to enable visualization
 
     def get_obs_limits(self):
         # Return the limits for each observation modality
@@ -152,7 +152,7 @@ class GridEnvironment:
         grid_y = (y_real / self.workspace_width) * self.grid_size
         return (grid_x, grid_y)
 
-    def _get_rsi_feedback(self, pos):
+    def _get_rsi_feedback(self, pos, rsi_noise_std=0.05):
         """
         Compute raw RSI signal based on distance to router (goal position).
 
@@ -172,10 +172,14 @@ class GridEnvironment:
         dy = pos[1] - self.goal_position[1]
         distance = math.sqrt(dx * dx + dy * dy)
 
-        # Exponential decay model
         rsi = self.RSI * math.exp(-self.alpha * distance)
 
-        return rsi
+        # Add Gaussian measurement noise
+        noise = random.gauss(0.0, rsi_noise_std)
+        rsi += noise
+
+        # Prevent negative values
+        return max(0.0, rsi)
     
     def get_distance_to_the_goal(self):
         pos = self.current_position
@@ -250,7 +254,7 @@ class GridEnvironment:
         self._initialize_visualization()
         return (self.current_position[0], self.current_position[1], rsi), done
 
-    def _is_goal(self, pos, threshold=12.5):
+    def _is_goal(self, pos, threshold=18):
         dx = pos[0] - self.goal_position[0]
         dy = pos[1] - self.goal_position[1]
         distance = math.sqrt(dx**2 + dy**2)

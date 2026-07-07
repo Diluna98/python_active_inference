@@ -1299,7 +1299,7 @@ class ActiveInfAgent:
                     )
                 )
 
-        G = (info_gain_tot - risk_term + ambiguity_term)
+        G = (info_gain_tot - risk_term + ambiguity_term*0.5)
             
 
 
@@ -1350,7 +1350,7 @@ class ActiveInfAgent:
 
         self.update_policy_posterior(trial, t)
     
-    def infer_policies(self, trial, t, gamma_const=16.0):
+    def infer_policies(self, trial, t, gamma_const=240.0):
         if self.deep_inference:
             #if not t%self.temporal_horizon == self.temporal_horizon-1:
             self.risk = []
@@ -1388,23 +1388,29 @@ class ActiveInfAgent:
             
             self.update_policy_posterior(trial, t)
         else:
-            self.external_lm._build_preferences(self.observations_cache[0])
-            self.infog_p = []
+            #self.external_lm._build_preferences(self.observations_cache[0])
+            self.risk = []
+            self.ambiguity = []
+            self.info_gain = []
             for policy_idx, policy in enumerate(self.policies):
                 info_gain_tot = 0
                 cost = 0
                 qs_next = self.get_expected_states(policy[0])
                 ambiguity_term = self.calculate_policy_ambiguity_continuous_mc_vec(0, policy_idx, qs_next)
+                self.ambiguity.append(ambiguity_term)
                 risk_term = self.calculate_policy_risk_continuous_mc_vec(0, policy_idx, qs_next)
+                self.risk.append(risk_term)
                 if self.learning_D:
                     info_gain_tot += self.calculate_pD_info_gain(policy_idx) 
                 if self.learning_A:
-                    info_gain_tot += self.calculate_pA_info_gain(t, policy_idx, qs_next)
+                    infogain = self.calculate_pA_info_gain(t, policy_idx, qs_next)
+                    info_gain_tot += infogain
+                    self.info_gain.append(infogain)
                 if self.learning_B:
                     info_gain_tot += self.calculate_pB_info_gain(t, policy_idx, qs_next)
                 cost = self._calculate_cost(policy_idx)
 
-                self.G_policy[policy_idx] = -risk_term + ambiguity_term + info_gain_tot*0.5 - cost*0
+                self.G_policy[policy_idx] = -risk_term + ambiguity_term + info_gain_tot - cost*0
 
             #print(self.G_policy)
             self.posterior_pi = self.softmax(np.float64(self.log_stable(self.E) + gamma_const*self.G_policy), axis=None)
@@ -1575,7 +1581,6 @@ class ActiveInfAgent:
 
 
             IG_policy = np.sum(predicted_gamma * (IG_mu + IG_var))
-            self.infog_p.append(IG_policy)
             return IG_policy
         
     def kl_normal_gamma(self, mu_new, kappa_new, alpha_new, beta_new,
@@ -1726,7 +1731,7 @@ class ActiveInfAgent:
                     ambiguity += H_Qo - H_cond
                     H_Qo_tot += H_cond
             #print(f"Policy {policy_idx} vectorized ambiguity calculation took {end_t - start_t:.2f} seconds and ambiguity value is {ambiguity:.4f}.")
-            return float(ambiguity*0.6), predictions, float(H_Qo_tot)
+            return float(ambiguity), predictions, float(H_Qo_tot)
         
         else:
             ambiguity = 0.0

@@ -76,7 +76,7 @@ class MetaAgent():
         self.meta_agent = ActiveInfAgent(states_dim=num_states, obs_dim=num_obs, controls_dim=num_controls,
                                     controlable_states=control_fac_idx, planning_depth=Temp_horizon,
                                     number_of_msg_passing=30, trials=None, B=B, D=D,
-                                    policies=policies, policy_pruning=False, learning_A=True, learning_D=False, learning_B=False, learning_C=False,
+                                    policies=policies, policy_pruning=False, learning_A=False, learning_D=False, learning_B=False, learning_C=False,
                                     continous_obs=True, lm_name="meta", mod_dependency=[[1], [0,1], [0,2], [2]], pref_dep=[[0,1]], obs_limits=None, learning_rate=0.1, forgeting_rate=0.95,
                                     obstacles_dic=None)
         self.meta_agent.store_parameters()
@@ -87,7 +87,7 @@ class MetaAgent():
         self.meta_agent.infer_states(0, 0, res_idx, obs)
         self.meta_agent.infer_policies(0, 0)
         chosen_action, _ = self.meta_agent.choose_action(0, 0)
-        #print(f"Chosen action: {chosen_action[0]}")
+        print(f"Chosen action: {chosen_action[0]}")
         self.meta_agent.perform_learning(0, 0)
         return chosen_action[0]
 

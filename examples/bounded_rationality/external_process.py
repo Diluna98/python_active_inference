@@ -29,7 +29,7 @@ if __name__ == "__main__":
     processes = []
 
     # create workers ONCE
-    for _ in range(4): #make this 20 to simulate about 50-60% load
+    for _ in range(20): #make this 20 to simulate about 50-60% load
                         #make this 4 to simulate about 0-10% load 
                         #make this 30 to simulate about 70-80% load
 
