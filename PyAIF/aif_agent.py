@@ -1323,7 +1323,7 @@ class ActiveInfAgent:
             # @NOTE according to the MATLAB code, pD info gain do not
             # depend on the time step of the policy. Therefore, we can
             # calculate it only when t==0, for the very first time step.
-            for factor_idx in [2]:
+            for factor_idx in range(self.num_factors):
                 wD_factor = self.pD_complexity[factor_idx]
                 #expected_sts = self.D[factor_idx].dot(self.policy_dep_posteriors[policy_idx, 0, factor_idx])
                 expected_sts_pD = wD_factor.dot(self.policy_dep_posteriors[policy_idx, 0, factor_idx])

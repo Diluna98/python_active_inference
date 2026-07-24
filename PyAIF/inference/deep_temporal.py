@@ -38,7 +38,7 @@ def deep_expected_free_energy(
     information_gain: float = 0.0,
 ) -> float:
     """Combine deep-policy value terms using the existing PyAIF convention."""
-    return float(-risk - ambiguity + information_gain)
+    return float(risk + ambiguity - information_gain)
 
 
 def deep_categorical_policy_ambiguity(

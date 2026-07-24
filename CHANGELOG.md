@@ -8,7 +8,8 @@
   `ShallowInference`, and `DeepTemporalInference` APIs.
 - Reusable shallow and deep categorical inference strategies.
 - Reusable categorical parameter learning for `A`, `B`, `C`, `D`, and `E`.
-- Numerical and handover regression tests.
+- Numerical and end-to-end learning-example regression tests.
+- Reproducible VFE-surprise animation for the uncertainty-learning example.
 - Wheel validation, continuous integration, and guarded release automation.
 - BSD-3-Clause licensing for the packaged software.
 
@@ -19,6 +20,11 @@
 - Domain-specific likelihood construction moved out of the package.
 - `ActiveInfAgent` now delegates reusable inference and learning behavior to
   focused modules.
+- The retained learning-under-uncertainty example now uses the public component
+  API and supports configurable trials, output directories, and random seeds.
+- Deep expected-free-energy signs and cumulative initial-state learning retain
+  the behavior of the validated research simulation.
+- The obsolete handover and autonomous pick-and-place examples were removed.
 
 ### Compatibility
 

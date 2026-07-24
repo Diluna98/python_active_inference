@@ -60,6 +60,7 @@ jobs:
         run: |
           python - <<'PY'
           import glob
+          import tarfile
           import zipfile
 
           wheel = glob.glob("dist/*.whl")[0]
@@ -68,6 +69,30 @@ jobs:
           assert "PyAIF/learning/categorical.py" in names
           assert any(name.endswith("licenses/LICENSE") for name in names)
           assert not any("examples/" in name for name in names)
+
+          source = glob.glob("dist/*.tar.gz")[0]
+          source_names = tarfile.open(source).getnames()
+          assert any(
+              name.endswith(
+                  "examples/learning_under_uncertainty/"
+                  "epistemic_uncertainty.py"
+              )
+              for name in source_names
+          )
+          assert any(
+              name.endswith(
+                  "examples/learning_under_uncertainty/"
+                  "aleatoric_uncertainty.py"
+              )
+              for name in source_names
+          )
+          assert any(
+              name.endswith(
+                  "examples/learning_under_uncertainty/"
+                  "vfe_transition.gif"
+              )
+              for name in source_names
+          )
           PY
       - uses: actions/upload-artifact@v4
         with:
