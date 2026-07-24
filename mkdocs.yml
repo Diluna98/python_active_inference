@@ -1,0 +1,48 @@
+site_name: PyAIF (pyaif-toolkit)
+site_url: https://diluna98.github.io/python_active_inference/
+site_description: >-
+  PyAIF is a Python active-inference toolkit supporting categorical and
+  continuous observations, shallow inference, deep temporal inference,
+  policy evaluation, and parameter learning.
+repo_url: https://github.com/Diluna98/python_active_inference
+repo_name: Diluna98/python_active_inference
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.sections
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Public API: public-api.md
+  - Model shapes: model-shapes.md
+  - Citation: citation.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+
+plugins:
+  - search
+
+copyright: Copyright &copy; 2026 Diluna A. Warnakulasuriya

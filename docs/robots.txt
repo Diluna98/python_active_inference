@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://diluna98.github.io/python_active_inference/sitemap.xml

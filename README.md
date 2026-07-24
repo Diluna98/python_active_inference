@@ -1,9 +1,13 @@
-# PyAIF
+# PyAIF (`pyaif-toolkit`)
 
-PyAIF is a Python package for constructing active-inference agents with
+PyAIF is an active-inference toolkit for Python. It constructs agents with
 factorised discrete hidden states and either categorical or continuous
 observations. It provides single-step inference, deep temporal inference,
 policy evaluation, action selection, and parameter-learning hooks.
+
+[Documentation](https://diluna98.github.io/python_active_inference/) ·
+[PyPI](https://pypi.org/project/pyaif-toolkit/) ·
+[Source code](https://github.com/Diluna98/python_active_inference)
 
 ## Citation
 

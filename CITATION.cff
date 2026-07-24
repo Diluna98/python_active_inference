@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: >-
+  If you use PyAIF in your research, please cite this software and the
+  related publication.
+title: "PyAIF: A Python Toolkit for Active Inference"
+type: software
+authors:
+  - family-names: Warnakulasuriya
+    given-names: Diluna A.
+repository-code: "https://github.com/Diluna98/python_active_inference"
+url: "https://diluna98.github.io/python_active_inference/"
+license: BSD-3-Clause
+version: 0.2.0
+date-released: 2026-07-24
+keywords:
+  - active inference
+  - Bayesian inference
+  - free energy principle
+  - POMDP
+  - Python
+  - variational inference
+preferred-citation:
+  type: conference-paper
+  title: >-
+    Towards Self-Supervised Intent Recognition in Human-Robot Collaboration
+    using Active Inference
+  authors:
+    - family-names: Warnakulasuriya
+      given-names: D. A.
+    - family-names: Plosila
+      given-names: J.
+    - family-names: Haghbayan
+      given-names: H.
+  collection-title: >-
+    2026 11th International Conference on Control and Robotics Engineering
+    (ICCRE)
+  year: 2026
+  start: 191
+  end: 198
+  doi: "10.1109/ICCRE69951.2026.11593576"

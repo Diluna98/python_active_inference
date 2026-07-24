@@ -7,9 +7,11 @@ pytest-v02-*/
 .pytest-release-temp/
 .release-validation/
 .tool-temp/
+.validation-temp/
 .venv/
 
 # Packaging
 *.egg-info/
 dist/
 build/
+site/
