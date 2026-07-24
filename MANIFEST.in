@@ -1,0 +1,16 @@
+include CHANGELOG.md
+include CONTRIBUTING.md
+include LICENSE
+recursive-include docs *.md
+
+prune examples
+prune profiling_results
+prune PyAIF/likelihood_models
+
+global-exclude *.csv
+global-exclude *.jsonl
+global-exclude *.log
+global-exclude *.npy
+global-exclude *.npz
+global-exclude *.png
+global-exclude *.zip
