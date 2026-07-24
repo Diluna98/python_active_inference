@@ -30,7 +30,10 @@ from PyAIF.numerics import (
     transpose_transition,
     wnorm,
 )
-from PyAIF.inference.shallow import infer_shallow_states
+from PyAIF.inference.shallow import (
+    infer_shallow_policies,
+    infer_shallow_states,
+)
 
 EPS_VAL = 1e-16 # global constant for use in spm_log() function
 
@@ -1353,45 +1356,11 @@ class ActiveInfAgent:
             
             self.update_policy_posterior(trial, t)
         else:
-            #self.external_lm._build_preferences(self.observations_cache[0])
-            self.risk = []
-            self.ambiguity = []
-            self.info_gain = []
-            
-            for policy_idx, policy in enumerate(self.policies):
-                info_gain_tot = 0
-                cost = 0
-                qs_next = self.get_expected_states(policy[0])
-                if self.continous_obs:
-                    ambiguity_term = self.calculate_policy_ambiguity_continuous_mc_vec(
-                        0, policy_idx, qs_next
-                    )
-                    risk_term = self.calculate_policy_risk_continuous_mc_vec(
-                        0, policy_idx, qs_next
-                    )
-                else:
-                    ambiguity_term = self.calculate_policy_ambiguity(
-                        0, policy_idx, qs_next
-                    )
-                    risk_term = self.calculate_policy_risk(
-                        0, policy_idx, qs_next
-                    )
-                self.ambiguity.append(ambiguity_term)
-                self.risk.append(risk_term)
-                if self.learning_D:
-                    info_gain_tot += self.calculate_pD_info_gain(policy_idx) 
-                if self.learning_A:
-                    infogain = self.calculate_pA_info_gain(t, policy_idx, qs_next)
-                    info_gain_tot += infogain
-                    self.info_gain.append(infogain)
-                if self.learning_B:
-                    info_gain_tot += self.calculate_pB_info_gain(t, policy_idx, qs_next)
-                cost = self._calculate_cost(policy_idx)
-
-                self.G_policy[policy_idx] = -risk_term + ambiguity_term + info_gain_tot - cost*0
-
-            #print(self.G_policy)
-            self.posterior_pi = self.softmax(np.float64(self.log_stable(self.E) + gamma_const*self.G_policy), axis=None)
+            self.last_policy_inference = infer_shallow_policies(
+                self,
+                t,
+                policy_precision=gamma_const,
+            )
 
         return (
             copy.deepcopy(self.G_policy),

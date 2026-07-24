@@ -111,8 +111,26 @@ def test_discrete_shallow_agent_updates_beliefs_and_selects_action():
     )
 
     G, F = agent.infer_policies()
-    assert G.shape == (2,)
+    np.testing.assert_allclose(
+        np.asarray(G, dtype=float),
+        np.array([0.9052857847047793, 0.9052857847047793]),
+    )
     assert F is None
+    np.testing.assert_allclose(agent.posterior_pi, np.array([0.5, 0.5]))
+    np.testing.assert_allclose(
+        agent.last_policy_inference.expected_free_energy.astype(float),
+        np.asarray(G, dtype=float),
+    )
+    np.testing.assert_allclose(
+        agent.last_policy_inference.policy_posterior,
+        agent.posterior_pi,
+    )
+    np.testing.assert_allclose(
+        agent.last_policy_inference.risk,
+        np.array([-np.log(2.0), -np.log(2.0)]),
+    )
+    assert len(agent.last_policy_inference.ambiguity) == 2
+    assert agent.last_policy_inference.information_gain == ()
     assert agent.select_action().shape == (1,)
 
 
