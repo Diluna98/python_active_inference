@@ -83,27 +83,40 @@ The `ActiveInfAgent` class is the core of the package. It implements the key Act
 Example initialization:
 
 ```python
-from PyAIF import ActiveInfAgent
+from PyAIF import (
+    ActiveInfAgent,
+    CategoricalLikelihood,
+    DeepTemporalInference,
+    GenerativeModel,
+)
+
+model = GenerativeModel(
+    B=B,
+    D=D,
+    controls_dim=num_controls,
+    controllable_factors=control_fac_idx,
+    policies=policies,
+)
+likelihood = CategoricalLikelihood(A=A, preferences=C)
+inference = DeepTemporalInference(
+    horizon=trial_horizon,
+    message_passing_iterations=100,
+)
 
 agent = ActiveInfAgent(
-    A=A,
-    B=B,
-    states_dim=num_states,
-    obs_dim=num_obs,
-    controls_dim=num_controls,
-    controlable_states=control_fac_idx,
-    trial_length=trial_horizon,
-    number_of_msg_passing=int, # Number of message passing iterations for state inference
-    trials=trials,             # Total number of trials
-    D=D,
-    C=C,
-    policies=policies,
-    policy_pruning=False,      # Option to enable custom policy pruning
-    learning_A=False,          # Enable/disable learning for A matrix
-    learning_B=False,          # Enable/disable learning for B matrix
-    learning_D=True            # Enable/disable learning for D vector
+    model=model,
+    likelihood=likelihood,
+    inference=inference,
+    trials=trials,
+    learning_A=False,
+    learning_B=False,
+    learning_D=True,
 )
 ```
+
+Use `ShallowInference()` instead when the agent performs single-step
+inference. PyAIF `0.1` supports categorical observations; continuous
+likelihood components are planned for `0.2`.
 
 ### 4\. Environments
 
@@ -144,10 +157,21 @@ This is the general procedure for setting up and running a simulation with PyAIF
 3.  **Initialize the agent**
 
     ```python
+    model = GenerativeModel(
+        B=B,
+        D=D,
+        controls_dim=num_controls,
+        controllable_factors=control_fac_idx,
+        policies=policies,
+    )
+    likelihood = CategoricalLikelihood(A=A, preferences=C)
+    inference = DeepTemporalInference(horizon=trial_horizon)
+
     agent = ActiveInfAgent(
-        A=A, B=B, states_dim=num_states, obs_dim=num_obs, controls_dim=num_controls,
-        controlable_states=control_fac_idx, trial_length=trial_horizon,
-        number_of_msg_passing=int, trials=trials, D=D, C=C, policies=policies
+        model=model,
+        likelihood=likelihood,
+        inference=inference,
+        trials=trials,
     )
     ```
 
@@ -164,27 +188,23 @@ The core simulation is a loop over trials and then a loop over the time horizon 
 
 ```python
 for trial in range(trials):
-    agent.store_parameters()         # Computes complexity of generative model parameters after learning
-    agent.normalize_columns()        # Normalizes columns after updating concentration parameters
-    agent.initialize_variables()     # Initializes internal variables for the next trial
-    obs = env.reset()                # Get the initial observation
+    agent.store_parameters()
+    agent.reset(trial=trial)
+    obs = env.reset()
 
     for t in range(trial_horizon):
-        # The agent's action is executed in the environment *before* getting the observation for t > 0
         if t > 0:
             obs = env.step(action)
 
-        agent.observations[trial, t, :] = obs      # Store the new observation
-        agent.infer_states(trial, t)               # Perform state inference
-        _, _ = agent.infer_policies(trial, t)      # Calculate EFE and policy inference
-        agent.perform_modal_average(trial, t)      # Perform model average (if applicable)
-        chosen_action, _ = agent.choose_action(trial, t) # Sample an action
+        agent.observe(obs, time_step=t)
+        agent.infer_states()
+        agent.infer_policies()
+        chosen_action = agent.select_action()
 
         if chosen_action is not None:
-            # Extract the actions of controllable state factors for the environment
             action = chosen_action[control_fac_idx]
 
-    _,_,_,_ = agent.perform_learning(trial) # Update generative model parameters at the end of the trial
+    agent.learn()
 ```
 
 -----

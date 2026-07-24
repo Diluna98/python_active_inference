@@ -1,6 +1,9 @@
 # Python cache
 __pycache__/
 *.pyc
+.pytest_cache/
+pytest-cache-files-*/
+.venv/
 
 # Packaging
 *.egg-info/

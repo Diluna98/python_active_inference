@@ -1,7 +1,13 @@
 import numpy as np
 import os
 from generative_model import create_generative_model
-from PyAIF import utils, ActiveInfAgent
+from PyAIF import (
+    ActiveInfAgent,
+    CategoricalLikelihood,
+    DeepTemporalInference,
+    GenerativeModel,
+    utils,
+)
 from environment import SortingEnv
 import matplotlib.pyplot as plt
 
@@ -50,32 +56,50 @@ if __name__ == "__main__":
         num_controls = [1, 1, 1, 1, 4]
         policies_to_filter = utils.construct_policies(num_states, num_controls, Temp_horizon-1, control_fac_idx)
         policies = filter_policies(policies_to_filter)  # Use only the first model for this simulation
-        ainf_agent = ActiveInfAgent(A=A, B=B, states_dim=num_states, obs_dim=num_obs, controls_dim=num_controls,
-                                    controlable_states=control_fac_idx, trial_length=Temp_horizon,
-                                    number_of_msg_passing=100, trials=TRIALS, D=D, C=C,
-                                    policies=policies, policy_pruning=False, learning_A=True, learning_D=True, learning_B=True, learning_C=False)
+        model = GenerativeModel(
+            B=B,
+            D=D,
+            controls_dim=num_controls,
+            controllable_factors=control_fac_idx,
+            policies=policies,
+        )
+        likelihood = CategoricalLikelihood(A=A, preferences=C)
+        inference = DeepTemporalInference(
+            horizon=Temp_horizon,
+            message_passing_iterations=100,
+        )
+        ainf_agent = ActiveInfAgent(
+            model=model,
+            likelihood=likelihood,
+            inference=inference,
+            trials=TRIALS,
+            policy_pruning=False,
+            learning_A=True,
+            learning_D=True,
+            learning_B=True,
+            learning_C=False,
+        )
         
         env = SortingEnv()
 
         actionlist = []
         for trial in range(TRIALS):
             ainf_agent.store_parameters()
-            ainf_agent.normalize_columns()
-            ainf_agent.initialize_variables()
+            ainf_agent.reset(trial=trial)
             obs = env.reset()
             a_action = 'ideal'
             for t in range(Temp_horizon):
                 if t != 0:
                     obs = env.step(a_action)
-                ainf_agent.observations[trial, t, :] = np.array(obs)
+                ainf_agent.observe(obs, time_step=t)
                 ainf_agent.infer_states(trial, t)
                 _, _ = ainf_agent.infer_policies(trial, t)
                 ainf_agent.calculate_counterfactual_disparity(t)
-                mod_averages = ainf_agent.perform_modal_average(trial, t)
+                mod_averages = ainf_agent.perform_modal_average()
                 chosen_action, action_list = ainf_agent.choose_action(trial, t)
                 actionlist.append(action_list)
                 if chosen_action is not None:
                     executable_actions = chosen_action[4]
                     print(f"\033[92mChosen action at trial {trial}, time {t}: {action_mappings[int(executable_actions)]}\033[0m")
                     a_action = action_mappings[int(executable_actions)]
-            _, _, _, _, _, _, _ = ainf_agent.perform_learning(trial)
+            ainf_agent.perform_learning(trial)

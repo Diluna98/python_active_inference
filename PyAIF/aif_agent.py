@@ -16,7 +16,6 @@ from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import shared_memory
 from itertools import chain
 from joblib import Parallel, delayed
-from PyAIF.likelihood_models.likelihoods_model import LikelihoodModels
 
 EPS_VAL = 1e-16 # global constant for use in spm_log() function
 
@@ -327,14 +326,77 @@ def full_eval_policy_worker(args):
 class ActiveInfAgent:
     
     def __init__(
-        self, states_dim, obs_dim, controls_dim, controlable_states,
+        self, states_dim=None, obs_dim=None, controls_dim=None, controlable_states=None,
         planning_depth=1, number_of_msg_passing = 100, learning_rate = 0.2,
         forgeting_rate = 0.99, trials = 100, alpha = 512, zeta = 0.01, timeconst = 1,  A=None, B=None, D=None,
         C=None, E=None, policies=False, policy_pruning = False, learning_D = False, learning_A = False,
         learning_B = False, learning_E = False, learning_C = False, learning_window = 4,
         continous_obs = False, lm_name = None, mod_dependency = None, pref_dep = None, factor_dep = None, obs_limits = None,
-        obstacles_dic = None, action_selection = "marginal"
+        obstacles_dic = None, action_selection = "marginal", *,
+        model=None, likelihood=None, inference=None,
     ):
+        component_values = (model, likelihood, inference)
+        using_component_api = any(value is not None for value in component_values)
+        if using_component_api:
+            if not all(value is not None for value in component_values):
+                raise ValueError(
+                    "model, likelihood, and inference must be provided together."
+                )
+
+            from PyAIF.likelihoods import CategoricalLikelihood
+
+            if not isinstance(likelihood, CategoricalLikelihood):
+                raise TypeError(
+                    "PyAIF v0.1 supports CategoricalLikelihood only. "
+                    "Continuous likelihoods are planned for v0.2."
+                )
+
+            likelihood.validate_states(model.states_dim)
+            states_dim = list(model.states_dim)
+            obs_dim = list(likelihood.obs_dim)
+            controls_dim = list(model.controls_dim)
+            controlable_states = list(model.controllable_factors)
+            planning_depth = inference.horizon
+            number_of_msg_passing = inference.message_passing_iterations
+            A = likelihood.A
+            C = likelihood.preferences
+            B = model.B
+            D = model.D
+            mod_dependency = [
+                list(dependencies)
+                for dependencies in likelihood.modality_dependencies
+            ]
+            if model.policies is not None:
+                policies = model.policies
+            continous_obs = False
+
+            self.model = model
+            self.likelihood = likelihood
+            self.inference = inference
+
+        required_dimensions = {
+            "states_dim": states_dim,
+            "obs_dim": obs_dim,
+            "controls_dim": controls_dim,
+            "controlable_states": controlable_states,
+        }
+        missing = [name for name, value in required_dimensions.items() if value is None]
+        if missing:
+            raise ValueError(f"Missing required agent configuration: {', '.join(missing)}")
+        if continous_obs:
+            raise NotImplementedError(
+                "PyAIF v0.1 supports categorical observations only. "
+                "Continuous likelihood components are planned for v0.2."
+            )
+
+        self.factor_dep = factor_dep
+        self.pref_dep = pref_dep
+        if mod_dependency is None:
+            mod_dependency = [
+                list(range(len(states_dim)))
+                for _ in range(len(obs_dim))
+            ]
+
         # 1. Initialize the plot OUTSIDE the loop
         # Initialize plot outside loop
         #plt.ion()
@@ -350,17 +412,12 @@ class ActiveInfAgent:
 
         if continous_obs == True:
             self.continous_obs = True
-            self.lm = LikelihoodModels( model_name=lm_name, states_dim=states_dim, obstacles_dic=obstacles_dic, obs_limits=obs_limits)
-            self.external_lm = self.lm.model
-            self.pref_dep = pref_dep
-            self.factor_dep = factor_dep
-            self.log_preferences_dict = self.external_lm.log_preferences
         else:
             self.continous_obs = False
 
         if self.deep_inference:
             # Construct policies
-            if policies == False:
+            if policies is False or policies is None:
                 self.policies = utils.construct_policies(states_dim, controls_dim, planning_depth-1, controlable_states)
             else:
                 self.policies = policies        
@@ -446,7 +503,12 @@ class ActiveInfAgent:
                 #for factor_idx in range(self.num_factors):
                     #if controls_dim[factor_idx] == 1:
                         #self.action_posteriors[factor_idx, :] = np.ones([1, self.temporal_horizon - 1])
-                self.bayesian_mod_avg = self.create_object_tensor('zeros', self.num_trials, self.temporal_horizon, self.num_factors, last_dim=self.states_dim)
+                self.bayesian_mod_avg = self.create_object_tensor(
+                    'zeros',
+                    self.temporal_horizon,
+                    self.num_factors,
+                    last_dim=self.states_dim,
+                )
                 self.Fd = self.create_object_tensor('zeros', 1, last_dim = [self.num_factors])
                 self.Fb = copy.deepcopy(self.Fd)
                 self.Fa = self.create_object_tensor('zeros', 1, last_dim = [self.num_modalities])
@@ -619,6 +681,62 @@ class ActiveInfAgent:
 
                 self.alpha = alpha
                 self.action_selection = action_selection # use "stochastic" for action selection with some randomness
+
+        if not hasattr(self, "gamma_previous"):
+            self.gamma_previous = 1.0
+        if not hasattr(self, "beta_prior"):
+            self.beta_prior = 1.0
+        if not hasattr(self, "beta_posterior"):
+            self.beta_posterior = 1.0
+
+
+    def reset(self, trial=0, normalize=True):
+        """Reset transient beliefs for the component-based public API.
+
+        The historical ``initialize_variables`` and ``normalize_columns``
+        methods remain available while examples migrate to this lifecycle.
+        """
+
+        if normalize:
+            self.normalize_columns()
+        self.initialize_variables()
+        self._current_trial = int(trial)
+        self._current_time = 0
+        self._pending_observation = None
+        return self
+
+    def observe(self, observation, time_step=None):
+        """Record one multimodal observation for the current time step."""
+
+        observation = np.asarray(observation)
+        if observation.shape != (self.num_modalities,):
+            raise ValueError(
+                f"Expected {self.num_modalities} modality values; "
+                f"received shape {observation.shape}."
+            )
+
+        if time_step is not None:
+            self._current_time = int(time_step)
+
+        self._pending_observation = observation.copy()
+        if self.deep_inference:
+            self.observations[self._current_time] = observation.copy()
+        return self
+
+    def select_action(self):
+        """Select an action using the current policy posterior."""
+
+        action, _ = self.choose_action(self._current_trial, self._current_time)
+        self._current_time += 1
+        return action
+
+    def learn(self):
+        """Apply configured parameter learning at the current agent time."""
+
+        return self.perform_learning(
+            self._current_trial,
+            actual_t=self._current_time,
+        )
 
 
     def initialize_variables(self):
@@ -809,7 +927,15 @@ class ActiveInfAgent:
         plt.draw()
         plt.pause(0.01)
     
-    def infer_states(self, trial, t, res_idx=None, obs=None, dF_tol=1e-4): 
+    def infer_states(self, trial=None, t=None, res_idx=None, obs=None, dF_tol=1e-4):
+        if trial is None:
+            trial = getattr(self, "_current_trial", 0)
+        if t is None:
+            t = getattr(self, "_current_time", 0)
+        if obs is None and hasattr(self, "_pending_observation"):
+            obs = self._pending_observation
+        if self.deep_inference and obs is not None and t not in self.observations:
+            self.observations[t] = np.asarray(obs).copy()
         
         if self.deep_inference:
             #implimentation of the MMP
@@ -956,7 +1082,7 @@ class ActiveInfAgent:
                             self.posteriors = qs_temp
 
                             # Fixed / observed factor
-                            if factor == 0:
+                            if res_idx is not None and factor == 0:
 
                                 qs_temp[factor] = np.zeros_like(
                                     qs_temp[factor]
@@ -1225,7 +1351,7 @@ class ActiveInfAgent:
     
     def get_expected_states(self, policy):
         # this function use during shallow inference
-        qs_fur = self.create_object_tensor('NaN', self.num_factors)
+        qs_fur = np.empty(self.num_factors, dtype=object)
         for cntrl_factor, action in enumerate(policy):
             qs_fur[cntrl_factor] = self.B[cntrl_factor][...,int(action)] @ self.posteriors[cntrl_factor]
         return qs_fur
@@ -1350,7 +1476,12 @@ class ActiveInfAgent:
 
         self.update_policy_posterior(trial, t)
     
-    def infer_policies(self, trial, t, gamma_const=240.0):
+    def infer_policies(self, trial=None, t=None, gamma_const=240.0):
+        if trial is None:
+            trial = getattr(self, "_current_trial", 0)
+        if t is None:
+            t = getattr(self, "_current_time", 0)
+
         if self.deep_inference:
             #if not t%self.temporal_horizon == self.temporal_horizon-1:
             self.risk = []
@@ -1397,9 +1528,21 @@ class ActiveInfAgent:
                 info_gain_tot = 0
                 cost = 0
                 qs_next = self.get_expected_states(policy[0])
-                ambiguity_term = self.calculate_policy_ambiguity_continuous_mc_vec(0, policy_idx, qs_next)
+                if self.continous_obs:
+                    ambiguity_term = self.calculate_policy_ambiguity_continuous_mc_vec(
+                        0, policy_idx, qs_next
+                    )
+                    risk_term = self.calculate_policy_risk_continuous_mc_vec(
+                        0, policy_idx, qs_next
+                    )
+                else:
+                    ambiguity_term = self.calculate_policy_ambiguity(
+                        0, policy_idx, qs_next
+                    )
+                    risk_term = self.calculate_policy_risk(
+                        0, policy_idx, qs_next
+                    )
                 self.ambiguity.append(ambiguity_term)
-                risk_term = self.calculate_policy_risk_continuous_mc_vec(0, policy_idx, qs_next)
                 self.risk.append(risk_term)
                 if self.learning_D:
                     info_gain_tot += self.calculate_pD_info_gain(policy_idx) 
@@ -1415,6 +1558,11 @@ class ActiveInfAgent:
 
             #print(self.G_policy)
             self.posterior_pi = self.softmax(np.float64(self.log_stable(self.E) + gamma_const*self.G_policy), axis=None)
+
+        return (
+            copy.deepcopy(self.G_policy),
+            copy.deepcopy(getattr(self, "F_policy", None)),
+        )
 
 
     def _calculate_cost(self, policy_idx, base_change_cost=0.15):
@@ -2393,10 +2541,10 @@ class ActiveInfAgent:
         return X
             
     def choose_action(self, trial, t):
+        action_list = None
 
         if self.deep_inference:
 
-            action_list = None
             if t%self.temporal_horizon < self.temporal_horizon-1:
                 #self.alpha = 0.1 * np.exp(0.05 * trial)
                 if self.action_selection == "deterministic":

@@ -1,3 +1,9 @@
+"""Paper-specific continuous likelihoods retained with the model-selection example.
+
+This module is not part of the PyAIF v0.1 discrete distribution. It will move
+to the separate model-selection repository when that project is extracted.
+"""
+
 import json
 import scipy
 import os
