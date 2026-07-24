@@ -40,6 +40,7 @@ Configuration:
 
 - `message_passing_iterations`
 - `convergence_tolerance`
+- `policy_workers` (default `1`)
 
 State and policy calls expose diagnostics through
 `agent.last_state_inference` and `agent.last_policy_inference`.
@@ -51,9 +52,14 @@ Configuration:
 - `horizon`
 - `message_passing_iterations`
 - `convergence_tolerance`
+- `policy_workers` (default `1`)
 
 Deep diagnostics include policy-dependent free energy, convergence, risk,
 ambiguity, information gain, and the final policy posterior.
+
+Deep inference automatically batches policies with NumPy. Set
+`policy_workers` above one only after benchmarking a representative workload;
+small models are normally faster with the default single batched worker.
 
 ## Lifecycle methods
 
