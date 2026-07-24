@@ -14,6 +14,8 @@
 
 ### Changed
 
+- PyPI distribution name set to `pyaif-toolkit`; the import package remains
+  `PyAIF`.
 - Domain-specific likelihood construction moved out of the package.
 - `ActiveInfAgent` now delegates reusable inference and learning behavior to
   focused modules.

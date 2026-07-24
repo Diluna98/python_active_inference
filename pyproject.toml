@@ -16,7 +16,7 @@ PyAIF = ["likelihood_models/*.py", "likelihood_models/*.npz"]
 "PyAIF.likelihood_models" = ["*"]
 
 [project]
-name = "PyAIF"
+name = "pyaif-toolkit"
 version = "0.1.0"
 description = "A Python package for Active Inference agents and simulations"
 authors = [

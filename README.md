@@ -13,6 +13,17 @@ the `examples/` directory or in separate repositories.
 
 PyAIF requires Python 3.9 or newer.
 
+Install the published distribution:
+
+```bash
+python -m pip install pyaif-toolkit
+```
+
+The distribution is named `pyaif-toolkit` on PyPI, while the Python import
+package remains `PyAIF`.
+
+To install from a source checkout:
+
 ```bash
 python -m pip install .
 ```
