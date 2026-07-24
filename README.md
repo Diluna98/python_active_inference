@@ -140,6 +140,10 @@ increasing the worker count; threading is most useful when each policy
 contains sufficiently large tensor contractions. `ShallowInference` accepts
 the same `policy_workers` option for concurrent policy scoring.
 
+See the reproducible
+[PyAIF–pymdp CPU benchmark](benchmarks/results/2026-07-24-windows-cpu.md)
+for comparisons with classic NumPy pymdp and current JAX pymdp.
+
 ## Agent lifecycle
 
 The supported component-based lifecycle is:

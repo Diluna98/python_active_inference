@@ -5,6 +5,8 @@
 ### Added
 
 - Configurable `policy_workers` for bounded parallel policy evaluation.
+- Reproducible CPU benchmarks against classic NumPy pymdp and current JAX
+  pymdp.
 
 ### Changed
 
