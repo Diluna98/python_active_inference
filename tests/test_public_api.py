@@ -2,7 +2,7 @@ import PyAIF
 
 
 def test_public_api_exposes_version_and_core_components():
-    assert PyAIF.__version__ == "0.1.0"
+    assert PyAIF.__version__ == "0.1.1"
 
     expected = {
         "ActiveInfAgent",
