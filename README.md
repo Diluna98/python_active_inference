@@ -5,6 +5,17 @@ with factorised hidden states. Version 0.1 provides categorical observations,
 single-step inference, deep temporal inference, policy evaluation, action
 selection, and categorical parameter learning.
 
+## Learning under uncertainty
+
+![Active-inference learning response to a context change](examples/learning_under_uncertainty/vfe_transition.gif)
+
+The agent minimizes variational free energy (VFE) as it improves its
+generative model. When the task context changes, prediction errors produce a
+temporary spike in VFE surprise. Continued learning then refines the model for
+the new context, reducing surprise again. The animation plots VFE surprise
+(the smoothed deviation from an adaptive VFE baseline), rather than raw
+cumulative model evidence.
+
 Continuous-observation likelihoods are intentionally reserved for version 0.2.
 Research applications and domain-specific likelihood construction belong in
 the `examples/` directory or in separate repositories.
