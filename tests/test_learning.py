@@ -31,7 +31,7 @@ def learning_agent():
     likelihood = CategoricalLikelihood(
         A=object_array(np.ones((2, 2))),
         preferences=object_array(np.zeros((2, 2))),
-        _modality_dependencies=[[0]],
+        modality_dependencies=[[0]],
     )
     agent = ActiveInfAgent(
         model=model,
@@ -62,7 +62,7 @@ def shallow_learning_agent():
     likelihood = CategoricalLikelihood(
         A=object_array(np.ones((2, 2))),
         preferences=object_array(np.zeros(2)),
-        _modality_dependencies=[[0]],
+        modality_dependencies=[[0]],
     )
     agent = ActiveInfAgent(
         model=model,

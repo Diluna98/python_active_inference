@@ -74,7 +74,7 @@ model = GenerativeModel(
 likelihood = CategoricalLikelihood(
     A=A,
     preferences=C,
-    _modality_dependencies=[[0]],
+    modality_dependencies=[[0]],
 )
 agent = ActiveInfAgent(
     model=model,

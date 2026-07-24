@@ -380,16 +380,16 @@ class ActiveInfAgent:
             controlable_states = list(model.controllable_factors)
             planning_depth = inference.horizon
             number_of_msg_passing = inference.message_passing_iterations
-            A = likelihood.A
-            C = likelihood.preferences
-            B = model.B
-            D = model.D
+            A = copy.deepcopy(likelihood.A)
+            C = copy.deepcopy(likelihood.preferences)
+            B = copy.deepcopy(model.B)
+            D = copy.deepcopy(model.D)
             mod_dependency = [
                 list(dependencies)
                 for dependencies in likelihood.modality_dependencies
             ]
             if model.policies is not None:
-                policies = model.policies
+                policies = copy.deepcopy(model.policies)
             continous_obs = False
 
             self.model = model

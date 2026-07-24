@@ -26,7 +26,7 @@ class CategoricalLikelihood:
 
     A: np.ndarray
     preferences: np.ndarray
-    _modality_dependencies: Optional[Sequence[Sequence[int]]] = None
+    modality_dependencies: Optional[Sequence[Sequence[int]]] = None
 
     def __post_init__(self) -> None:
         if len(self.A) == 0:
@@ -34,34 +34,30 @@ class CategoricalLikelihood:
         if len(self.preferences) != len(self.A):
             raise ValueError("preferences must contain one array per modality.")
 
-        if self._modality_dependencies is None:
+        if self.modality_dependencies is None:
             dependencies = tuple(
                 tuple(range(max(0, np.asarray(modality).ndim - 1)))
                 for modality in self.A
             )
         else:
-            if len(self._modality_dependencies) != len(self.A):
+            if len(self.modality_dependencies) != len(self.A):
                 raise ValueError(
                     "modality_dependencies must contain one entry per modality."
                 )
             dependencies = tuple(
                 tuple(int(factor) for factor in modality)
-                for modality in self._modality_dependencies
+                for modality in self.modality_dependencies
             )
 
-        object.__setattr__(self, "_modality_dependencies", dependencies)
+        object.__setattr__(self, "modality_dependencies", dependencies)
 
     @property
     def obs_dim(self) -> tuple[int, ...]:
         return tuple(int(np.asarray(modality).shape[0]) for modality in self.A)
 
-    @property
-    def modality_dependencies(self) -> tuple[tuple[int, ...], ...]:
-        assert self._modality_dependencies is not None
-        return tuple(tuple(modality) for modality in self._modality_dependencies)
-
     def validate_states(self, states_dim: Sequence[int]) -> None:
         states_dim = tuple(int(size) for size in states_dim)
+        assert self.modality_dependencies is not None
         for modality_idx, (modality, dependencies) in enumerate(
             zip(self.A, self.modality_dependencies)
         ):

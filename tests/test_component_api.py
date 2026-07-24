@@ -42,7 +42,7 @@ def make_components(inference):
     likelihood = CategoricalLikelihood(
         A=A,
         preferences=preferences,
-        _modality_dependencies=[[0]],
+        modality_dependencies=[[0]],
     )
     return model, likelihood
 
@@ -79,6 +79,50 @@ def test_categorical_likelihood_rejects_incompatible_state_shape():
     likelihood.validate_states(model.states_dim)
     with pytest.raises(ValueError, match="state shape"):
         likelihood.validate_states(incompatible.states_dim)
+
+
+def test_component_inputs_remain_unchanged_during_agent_learning():
+    inference = ShallowInference(message_passing_iterations=2)
+    model, likelihood = make_components(inference)
+    original_A = [array.copy() for array in likelihood.A]
+    original_B = [array.copy() for array in model.B]
+    original_C = [array.copy() for array in likelihood.preferences]
+    original_D = [array.copy() for array in model.D]
+
+    agent = ActiveInfAgent(
+        model=model,
+        likelihood=likelihood,
+        inference=inference,
+        learning_A=True,
+        learning_B=True,
+        learning_D=True,
+        learning_window=2,
+        learning_rate=0.5,
+        forgeting_rate=1.0,
+    )
+    agent.reset()
+    agent.observations_cache[0, 0] = 0
+    agent.observations_cache[1, 0] = 1
+    agent.posteriors_cache[0, 0] = np.array([0.8, 0.2])
+    agent.posteriors_cache[1, 0] = np.array([0.3, 0.7])
+    agent.action_posteriors_cache[0, 0] = 0
+
+    result = agent.perform_learning(trial=0, actual_t=1)
+
+    assert result.likelihood
+    assert result.transition
+    assert result.initial_state
+    assert not np.array_equal(agent.pA[0], original_A[0])
+    assert not np.array_equal(agent.pB[0], original_B[0])
+    assert not np.array_equal(agent.pD[0], original_D[0])
+    for actual, expected in zip(likelihood.A, original_A):
+        np.testing.assert_array_equal(actual, expected)
+    for actual, expected in zip(model.B, original_B):
+        np.testing.assert_array_equal(actual, expected)
+    for actual, expected in zip(likelihood.preferences, original_C):
+        np.testing.assert_array_equal(actual, expected)
+    for actual, expected in zip(model.D, original_D):
+        np.testing.assert_array_equal(actual, expected)
 
 
 def test_discrete_shallow_agent_updates_beliefs_and_selects_action():

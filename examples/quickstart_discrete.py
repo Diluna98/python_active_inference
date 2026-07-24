@@ -40,7 +40,7 @@ def build_agent():
     observation_model = CategoricalLikelihood(
         A=likelihood,
         preferences=object_array(np.zeros(2)),
-        _modality_dependencies=[[0]],
+        modality_dependencies=[[0]],
     )
     return ActiveInfAgent(
         model=model,
