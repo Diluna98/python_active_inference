@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
@@ -24,6 +24,8 @@ authors = [
 ]
 readme = "README.md"
 requires-python = ">=3.9"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 keywords = ["active-inference", "bayesian-inference", "generative-models"]
 classifiers = [
   "Development Status :: 3 - Alpha",

@@ -1,5 +1,6 @@
 include CHANGELOG.md
 include CONTRIBUTING.md
+include LICENSE
 recursive-include docs *.md
 
 prune examples

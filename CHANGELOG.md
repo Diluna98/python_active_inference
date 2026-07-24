@@ -10,6 +10,7 @@
 - Reusable categorical parameter learning for `A`, `B`, `C`, `D`, and `E`.
 - Numerical and handover regression tests.
 - Wheel validation, continuous integration, and guarded release automation.
+- BSD-3-Clause licensing for the packaged software.
 
 ### Changed
 

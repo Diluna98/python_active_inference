@@ -66,6 +66,7 @@ jobs:
           names = zipfile.ZipFile(wheel).namelist()
           assert "PyAIF/inference/deep_temporal.py" in names
           assert "PyAIF/learning/categorical.py" in names
+          assert any(name.endswith("licenses/LICENSE") for name in names)
           assert not any("examples/" in name for name in names)
           PY
       - uses: actions/upload-artifact@v4

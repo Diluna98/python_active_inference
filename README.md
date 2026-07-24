@@ -150,6 +150,15 @@ python examples/quickstart_discrete.py
 Behavioral changes are protected with numerical regression tests. Research
 experiments may evolve independently from the packaged API.
 
+## License
+
+PyAIF is distributed under the
+[BSD 3-Clause License](LICENSE). Copyright © 2026
+Diluna A. Warnakulasuriya.
+
+This software license does not automatically apply to papers, datasets,
+figures, trained models, or other research artifacts.
+
 ## Development
 
 ```bash
