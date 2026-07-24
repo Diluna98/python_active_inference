@@ -15,6 +15,12 @@ Inference,” *2026 11th International Conference on Control and Robotics
 Engineering (ICCRE)*, Kyoto, Japan, 2026, pp. 191–198,
 [doi:10.1109/ICCRE69951.2026.11593576](https://doi.org/10.1109/ICCRE69951.2026.11593576).
 
+## Demonstration
+
+[![Active Inference POMDP implementation on a Franka Emika Panda Robot](https://i.ytimg.com/vi/4YzYsFVc6bE/hqdefault.jpg)](https://youtu.be/4YzYsFVc6bE)
+
+*Active Inference POMDP implementation on a Franka Emika Panda Robot — ASL Lab UTU.*
+
 ## Learning under uncertainty
 
 ![Active-inference learning response to a context change](examples/learning_under_uncertainty/vfe_transition.gif)
