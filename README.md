@@ -5,6 +5,16 @@ with factorised hidden states. Version 0.1 provides categorical observations,
 single-step inference, deep temporal inference, policy evaluation, action
 selection, and categorical parameter learning.
 
+## Citation
+
+If you use PyAIF in your research, please cite:
+
+D. A. Warnakulasuriya, J. Plosila and H. Haghbayan, “Towards
+Self-Supervised Intent Recognition in Human-Robot Collaboration using Active
+Inference,” *2026 11th International Conference on Control and Robotics
+Engineering (ICCRE)*, Kyoto, Japan, 2026, pp. 191–198,
+[doi:10.1109/ICCRE69951.2026.11593576](https://doi.org/10.1109/ICCRE69951.2026.11593576).
+
 ## Learning under uncertainty
 
 ![Active-inference learning response to a context change](examples/learning_under_uncertainty/vfe_transition.gif)
