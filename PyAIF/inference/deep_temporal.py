@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 
 from PyAIF.inference.base import map_policies
+from PyAIF.inference.continuous import continuous_policy_terms
 from PyAIF.numerics import factor_dot, log_stable_probability, softmax
 
 
@@ -190,19 +191,24 @@ def _expected_log_likelihood_for_trajectory(
     posterior_trajectory: Any,
     tau_reference: int,
 ) -> np.ndarray:
-    """Contract categorical likelihoods against one policy trajectory."""
+    """Contract observation likelihoods against one policy trajectory."""
     result = np.zeros(agent.states_dim[factor])
     for modality_index, dependencies in enumerate(agent.mod_dep):
         if factor not in dependencies:
             continue
 
-        log_likelihood = log_stable_probability(
-            np.take(
+        if agent.continous_obs:
+            likelihood = agent.likelihood.likelihoods(
+                observation[modality_index],
+                modality_index,
+            )
+        else:
+            likelihood = np.take(
                 agent.A[modality_index],
                 observation[modality_index],
                 axis=0,
             )
-        )
+        log_likelihood = log_stable_probability(likelihood)
         arguments = [log_likelihood, list(dependencies)]
         for dependency in dependencies:
             if dependency != factor:
@@ -410,13 +416,18 @@ def _infer_deep_policy_batch(
             if target_factor not in dependencies:
                 continue
 
-            log_likelihood = log_stable_probability(
-                np.take(
+            if agent.continous_obs:
+                likelihood = agent.likelihood.likelihoods(
+                    observation[modality_index],
+                    modality_index,
+                )
+            else:
+                likelihood = np.take(
                     agent.A[modality_index],
                     observation[modality_index],
                     axis=0,
                 )
-            )
+            log_likelihood = log_stable_probability(likelihood)
             other_dependencies = [
                 dependency for dependency in dependencies if dependency != target_factor
             ]
@@ -869,6 +880,93 @@ def infer_deep_temporal_states(
     )
 
 
+def _infer_deep_continuous_policies(
+    agent: Any,
+    trial: int,
+    time_step: int,
+    policy_workers: int,
+) -> DeepPolicyInferenceResult:
+    """Evaluate deep policies using a continuous likelihood component."""
+
+    start_time = time_step % agent.temporal_horizon
+
+    def evaluate_policy(policy_index: int):
+        preference_cost = 0.0
+        state_information_gain = 0.0
+        parameter_information_gain = 0.0
+        trajectory_predictions = []
+
+        for timestep in range(start_time, agent.temporal_horizon):
+            state_beliefs = [
+                agent.policy_dep_posteriors[policy_index, timestep, factor]
+                for factor in range(agent.num_factors)
+            ]
+            cost, information_gain, predictions = continuous_policy_terms(
+                agent.likelihood,
+                state_beliefs,
+                seed_offset=(
+                    (time_step * len(agent.policies) + policy_index)
+                    * agent.temporal_horizon
+                    + timestep
+                ),
+            )
+            preference_cost += cost
+            state_information_gain += information_gain
+            trajectory_predictions.append(predictions)
+            if agent.learning_A:
+                parameter_information_gain += (
+                    agent.likelihood.parameter_information_gain(state_beliefs)
+                )
+
+        information_gain = parameter_information_gain
+        if agent.learning_D:
+            information_gain += agent.calculate_pD_info_gain(policy_index)
+        if agent.learning_B:
+            information_gain += agent.calculate_pB_info_gain_vectorized(
+                time_step,
+                policy_index,
+            )
+
+        expected_free_energy = (
+            -preference_cost + state_information_gain + information_gain
+        )
+        return (
+            float(preference_cost),
+            float(state_information_gain),
+            float(information_gain),
+            float(expected_free_energy),
+            tuple(trajectory_predictions),
+        )
+
+    results = map_policies(
+        evaluate_policy,
+        len(agent.policies),
+        policy_workers,
+    )
+    agent.risk = [result[0] for result in results]
+    agent.ambiguity = [result[1] for result in results]
+    agent.info_gain = [result[2] for result in results]
+    for policy_index, result in enumerate(results):
+        agent.G_policy[policy_index] = result[3]
+        for offset, timestep_predictions in enumerate(result[4]):
+            timestep = start_time + offset
+            for modality, prediction in enumerate(timestep_predictions):
+                agent.policy_dep_expected_obs[
+                    policy_index,
+                    timestep,
+                ][modality] = prediction
+
+    agent.update_policy_posterior(trial, time_step)
+    return DeepPolicyInferenceResult(
+        expected_free_energy=copy.deepcopy(agent.G_policy),
+        variational_free_energy=copy.deepcopy(agent.F_policy),
+        policy_posterior=copy.deepcopy(agent.posterior_pi),
+        risk=tuple(agent.risk),
+        ambiguity=tuple(agent.ambiguity),
+        information_gain=tuple(agent.info_gain),
+    )
+
+
 def infer_deep_temporal_policies(
     agent: Any,
     trial: int,
@@ -876,7 +974,15 @@ def infer_deep_temporal_policies(
     *,
     policy_workers: int = 1,
 ) -> DeepPolicyInferenceResult:
-    """Evaluate categorical deep policies and update their posterior."""
+    """Evaluate deep policies and update their posterior."""
+    if agent.continous_obs:
+        return _infer_deep_continuous_policies(
+            agent,
+            trial,
+            time_step,
+            policy_workers,
+        )
+
     if len(agent.policies) >= 4:
         start_time = time_step % agent.temporal_horizon
         policy_risk, policy_ambiguity, predictions = (

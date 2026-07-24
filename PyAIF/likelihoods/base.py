@@ -7,7 +7,7 @@ from typing import Protocol, Sequence, runtime_checkable
 
 @runtime_checkable
 class LikelihoodModel(Protocol):
-    """Minimum metadata required by the v0.1 agent constructor."""
+    """Metadata shared by categorical and continuous likelihood components."""
 
     @property
     def obs_dim(self) -> Sequence[int]: ...

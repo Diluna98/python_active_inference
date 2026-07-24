@@ -1,11 +1,11 @@
 # Public API
 
-PyAIF v0.1 supports the component-based constructor:
+PyAIF supports the component-based constructor:
 
 ```python
 ActiveInfAgent(
     model=GenerativeModel(...),
-    likelihood=CategoricalLikelihood(...),
+    likelihood=CategoricalLikelihood(...),  # or ContinuousLikelihood(...)
     inference=ShallowInference(...),  # or DeepTemporalInference(...)
 )
 ```
@@ -32,7 +32,20 @@ Contains:
 - outcome preferences
 - modality-to-state-factor dependencies
 
-Continuous likelihoods are not accepted in v0.1.
+### `ContinuousLikelihood`
+
+Contains:
+
+- a scalar density callback for each modality
+- one numerical integration grid per modality
+- individual or joint log preferences on those grids
+- modality-to-state-factor dependencies
+- an optional vectorized grid-density callback
+- optional likelihood-learning, preference-learning, and
+  parameter-information-gain callbacks
+
+`ContinuousLikelihood.from_model(...)` adapts a domain object that exposes
+`likelihoods`, `get_o_grid`, and `log_preferences`.
 
 ### `ShallowInference`
 
@@ -69,7 +82,7 @@ small models are normally faster with the default single batched worker.
 - `infer_states()`: update hidden-state beliefs.
 - `infer_policies()`: evaluate policies and update their posterior.
 - `select_action()`: select an action and advance the component lifecycle time.
-- `learn()`: apply enabled categorical parameter updates.
+- `learn()`: apply enabled structural or likelihood parameter updates.
 
 ## Learning
 
@@ -77,8 +90,10 @@ Learning is opt-in through `learning_A`, `learning_B`, `learning_C`,
 `learning_D`, and `learning_E`. The latest update summary is available as
 `agent.last_learning`.
 
-Pure learning helpers are exported from `PyAIF.learning` for applications that
-manage their own trajectories.
+Categorical likelihood parameters use the built-in Dirichlet learner.
+Continuous likelihood parameters are domain-dependent and use the
+`ContinuousLikelihood.learning_fn` callback. Structural `B`, `D`, and `E`
+learning remains available with continuous observations.
 
 ## Compatibility layer
 

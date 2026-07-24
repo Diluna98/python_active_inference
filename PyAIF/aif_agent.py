@@ -8,7 +8,6 @@ import time
 import string
 from PyAIF import utils
 from collections.abc import Iterable
-from scipy.special import digamma, gammaln, loggamma
 import matplotlib.pyplot as plt
 import multiprocessing
 import concurrent.futures
@@ -41,6 +40,7 @@ from PyAIF.inference.deep_temporal import (
     infer_deep_temporal_states,
 )
 from PyAIF.learning import (
+    CategoricalLearningResult,
     learn_deep_categorical,
     learn_shallow_categorical,
 )
@@ -365,12 +365,15 @@ class ActiveInfAgent:
                     "model, likelihood, and inference must be provided together."
                 )
 
-            from PyAIF.likelihoods import CategoricalLikelihood
+            from PyAIF.likelihoods import CategoricalLikelihood, ContinuousLikelihood
 
-            if not isinstance(likelihood, CategoricalLikelihood):
+            if not isinstance(
+                likelihood,
+                (CategoricalLikelihood, ContinuousLikelihood),
+            ):
                 raise TypeError(
-                    "PyAIF v0.1 supports CategoricalLikelihood only. "
-                    "Continuous likelihoods are planned for v0.2."
+                    "likelihood must be a CategoricalLikelihood or "
+                    "ContinuousLikelihood."
                 )
 
             likelihood.validate_states(model.states_dim)
@@ -380,8 +383,6 @@ class ActiveInfAgent:
             controlable_states = list(model.controllable_factors)
             planning_depth = inference.horizon
             number_of_msg_passing = inference.message_passing_iterations
-            A = copy.deepcopy(likelihood.A)
-            C = copy.deepcopy(likelihood.preferences)
             B = copy.deepcopy(model.B)
             D = copy.deepcopy(model.D)
             mod_dependency = [
@@ -390,7 +391,21 @@ class ActiveInfAgent:
             ]
             if model.policies is not None:
                 policies = copy.deepcopy(model.policies)
-            continous_obs = False
+            if isinstance(likelihood, CategoricalLikelihood):
+                A = copy.deepcopy(likelihood.A)
+                C = copy.deepcopy(likelihood.preferences)
+                continous_obs = False
+            else:
+                A = None
+                C = None
+                continous_obs = True
+                self.external_lm = likelihood
+                self.log_preferences_dict = likelihood.log_preferences
+                if pref_dep is None:
+                    pref_dep = [
+                        list(dependencies)
+                        for dependencies in likelihood.preference_dependencies
+                    ]
 
             self.model = model
             self.likelihood = likelihood
@@ -405,10 +420,11 @@ class ActiveInfAgent:
         missing = [name for name, value in required_dimensions.items() if value is None]
         if missing:
             raise ValueError(f"Missing required agent configuration: {', '.join(missing)}")
-        if continous_obs:
-            raise NotImplementedError(
-                "PyAIF v0.1 supports categorical observations only. "
-                "Continuous likelihood components are planned for v0.2."
+        if continous_obs and not using_component_api:
+            raise ValueError(
+                "Continuous observations require the component API: provide "
+                "model=GenerativeModel(...), "
+                "likelihood=ContinuousLikelihood(...), and an inference component."
             )
 
         self.factor_dep = factor_dep
@@ -436,13 +452,16 @@ class ActiveInfAgent:
             self.continous_obs = True
         else:
             self.continous_obs = False
+        # Correctly spelled public attribute; retain the historical misspelling
+        # internally for compatibility with existing research code.
+        self.continuous_obs = self.continous_obs
 
         if self.deep_inference:
             # Construct policies
             if policies is False or policies is None:
                 self.policies = utils.construct_policies(states_dim, controls_dim, planning_depth-1, controlable_states)
             else:
-                self.policies = policies        
+                self.policies = policies
             self.policy_pruning = policy_pruning
             self.num_modalities = len(obs_dim)
             self.num_policies = len(self.policies)
@@ -667,7 +686,15 @@ class ActiveInfAgent:
                 self.action_selection = action_selection # use "stochastic" for action selection with some randomness
 
             else:
-                self.policies = policies
+                if policies is False or policies is None:
+                    self.policies = utils.construct_policies(
+                        states_dim,
+                        controls_dim,
+                        1,
+                        controlable_states,
+                    )
+                else:
+                    self.policies = policies
                 self.num_factors = len(states_dim)
                 self.num_modalities = len(obs_dim)
                 self.num_policies = len(self.policies)
@@ -1411,6 +1438,23 @@ class ActiveInfAgent:
    
     
     def calculate_pA_info_gain(self, t, policy_idx, qs_fur=None):
+        if self.continous_obs:
+            if qs_fur is not None:
+                return self.likelihood.parameter_information_gain(qs_fur)
+            information_gain = 0.0
+            for timestep in range(
+                t % self.temporal_horizon,
+                self.temporal_horizon,
+            ):
+                beliefs = [
+                    self.policy_dep_posteriors[policy_idx, timestep, factor]
+                    for factor in range(self.num_factors)
+                ]
+                information_gain += self.likelihood.parameter_information_gain(
+                    beliefs
+                )
+            return information_gain
+
         wA_term_policy = 0
         if self.deep_inference:
             for timestep in range(t%self.temporal_horizon, self.temporal_horizon):
@@ -1422,72 +1466,15 @@ class ActiveInfAgent:
             return wA_term_policy
         
         else:
-            predicted_gamma = np.outer(qs_fur[0], qs_fur[1])
-            mu_old = self.external_lm.mu_err
-            kappa_old = self.external_lm.kappa_err
-            alpha_old = self.external_lm.alpha_err
-            beta_old = self.external_lm.beta_err
-
-            # === Hypothetical conjugate update using expected sufficient statistics ===
-            # For pure epistemic value we use the *current predictive mean* as expected obs
-            # (this makes the mean-shift term expected zero while still updating precision)
-            obs_expected = mu_old   # key for production-grade approximation
-
-            kappa_new = kappa_old + predicted_gamma
-            alpha_new = alpha_old + 0.5 * predicted_gamma
-            mu_new = (kappa_old * mu_old + predicted_gamma * obs_expected) / kappa_new
-            
-
-            # Your exact beta update
-            beta_new = beta_old + (
-                0.5 * (kappa_old * predicted_gamma / kappa_new) * (obs_expected - mu_old) ** 2
-            )
-
-            # === Compute KL per element (vectorized) ===
-            # Broadcast everything
-            IG_var = self.kl_normal_gamma(
-                mu_new, kappa_new, alpha_new, beta_new,
-                mu_old, kappa_old, alpha_old, beta_old
-            )
-
-            # Expected information gain: weight by predicted responsibility gamma
-            # (this is the Monte-Carlo / expectation approximation over predictive o)
-            IG_mu = 0.5 * np.log((kappa_new + EPS_VAL) / (kappa_old + EPS_VAL))
-
-
-            IG_policy = np.sum(predicted_gamma * (IG_mu + IG_var))
-            return IG_policy
+            for modality_idx, modality in enumerate(self.A):
+                expected_obs = self.cell_md_dot_py(modality, qs_fur)
+                expected_obs_pA = self.cell_md_dot_py(
+                    self.pA_complexity[modality_idx],
+                    qs_fur,
+                )
+                wA_term_policy += expected_obs.dot(expected_obs_pA)
+            return wA_term_policy
         
-    def kl_normal_gamma(self, mu_new, kappa_new, alpha_new, beta_new,
-                        mu_old, kappa_old, alpha_old, beta_old):
-        """
-        KL[ NG_new (posterior) || NG_old (prior) ] 
-        Univariate case matching your Normal-Gamma / Student's-t setup.
-        """
-        eps = 1e-12
-        alpha_new = np.maximum(alpha_new, eps)
-        alpha_old = np.maximum(alpha_old, eps)
-        beta_new = np.maximum(beta_new, eps)
-        beta_old = np.maximum(beta_old, eps)
-        kappa_new = np.maximum(kappa_new, eps)
-        kappa_old = np.maximum(kappa_old, eps)
-
-        # === Normal component (mean) ===
-        # Weighted squared difference + precision ratio terms
-        term_mu = 0.5 * (alpha_new / beta_new) * kappa_old * (mu_new - mu_old)**2
-        term_kappa = 0.5 * (np.log(kappa_old / kappa_new) - (kappa_old / kappa_new) + 1.0)
-
-        # === Gamma component (precision / variance) ===
-        term_gamma = (
-            alpha_old * np.log(beta_new / beta_old)
-            - (gammaln(alpha_new) - gammaln(alpha_old))
-            + (alpha_new - alpha_old) * digamma(alpha_new)
-            - (beta_new - beta_old) * (alpha_new / beta_new)
-        )
-
-        kl = term_mu + term_kappa + term_gamma
-        return np.clip(kl, 0.0, None)  # Ensure non-negativity for numerical safety
-    
     def calculate_policy_ambiguity_continuous_mc_vec(
         self,
         t,
@@ -2367,15 +2354,85 @@ class ActiveInfAgent:
 
         
     def perform_learning(self, trial, actual_t=None):
-        """Apply configured categorical parameter learning.
+        """Apply configured parameter learning.
 
         ``trial`` remains accepted for compatibility with existing examples;
-        reusable v0.1 learning operates on the current cached trajectory.
+        reusable learning operates on the current cached trajectory.
         """
         if self.continous_obs:
-            raise NotImplementedError(
-                "Continuous parameter learning is planned for PyAIF v0.2."
+            if actual_t is None:
+                actual_t = getattr(self, "_current_time", 0)
+            if (
+                not self.deep_inference
+                and int(actual_t) % self.learning_window
+                != self.learning_window - 1
+            ):
+                self.last_learning = CategoricalLearningResult()
+                return self.last_learning
+
+            original_learning_A = self.learning_A
+            original_learning_C = self.learning_C
+            self.learning_A = False
+            self.learning_C = False
+            try:
+                if self.deep_inference:
+                    structural_result = learn_deep_categorical(self)
+                else:
+                    structural_result = learn_shallow_categorical(
+                        self,
+                        int(actual_t),
+                    )
+            finally:
+                self.learning_A = original_learning_A
+                self.learning_C = original_learning_C
+
+            likelihood_updated = False
+            preference_updated = False
+            if original_learning_A:
+                if self.deep_inference:
+                    times = sorted(self.observations)
+                    observations = np.asarray(
+                        [self.observations[time] for time in times]
+                    )
+                    state_beliefs = np.asarray(
+                        [
+                            [
+                                self.bayesian_mod_avg[
+                                    time % self.temporal_horizon,
+                                    factor,
+                                ]
+                                for factor in range(self.num_factors)
+                            ]
+                            for time in times
+                        ],
+                        dtype=object,
+                    )
+                else:
+                    observations = copy.deepcopy(self.observations_cache)
+                    state_beliefs = copy.deepcopy(self.posteriors_cache)
+                likelihood_updated = self.likelihood.update(
+                    observations,
+                    state_beliefs,
+                    self.learning_rate,
+                )
+            if original_learning_C:
+                if self.deep_inference:
+                    preference_beliefs = copy.deepcopy(self.bayesian_mod_avg)
+                else:
+                    preference_beliefs = copy.deepcopy(self.posteriors_cache)
+                preference_updated = self.likelihood.update_preferences(
+                    preference_beliefs,
+                    self.learning_rate,
+                )
+
+            self.last_learning = CategoricalLearningResult(
+                likelihood=likelihood_updated,
+                transition=structural_result.transition,
+                initial_state=structural_result.initial_state,
+                habit=structural_result.habit,
+                preference=preference_updated,
             )
+            return self.last_learning
         if self.deep_inference:
             self.last_learning = learn_deep_categorical(self)
         else:
@@ -2622,22 +2679,12 @@ class ActiveInfAgent:
         else:
             # Initialize with zeros for the states of the target factor
             log_likelihoods = np.zeros(self.states_dim[factor])
-            precision = 1
             if obs is not None:
                 for modal_idx in range(self.num_modalities):
                     # Get the log-likelihood slice for the current observation
                     # This is a tensor with dimensions for each state factor
                     if factor not in self.mod_dep[modal_idx]:
                         continue # Skip if the modality does not depend on the target factor
-                    if factor == 2 and modal_idx == 2:
-                        precision = 1
-                    if factor == 1 and modal_idx == 1:
-                        precision = 0.1
-                    if factor == 0 and modal_idx == 1:
-                        precision = 1
-
-                    
-
                     # Get the log-likelihood slice for the current observation
                     if self.continous_obs:
                         lnA = self.log_stable(self.external_lm.likelihoods(obs[modal_idx], modal_idx))
@@ -2672,7 +2719,7 @@ class ActiveInfAgent:
                         # Perform the entire marginalization in one step
                         expected_lnA = np.einsum(einsum_str, lnA, *posteriors_to_marginalize)
                     
-                    log_likelihoods += expected_lnA*precision
+                    log_likelihoods += expected_lnA
                 
         return log_likelihoods
             

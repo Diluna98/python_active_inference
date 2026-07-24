@@ -1,9 +1,9 @@
 # PyAIF
 
-PyAIF is a Python package for constructing discrete active-inference agents
-with factorised hidden states. Version 0.1 provides categorical observations,
-single-step inference, deep temporal inference, policy evaluation, action
-selection, and categorical parameter learning.
+PyAIF is a Python package for constructing active-inference agents with
+factorised discrete hidden states and either categorical or continuous
+observations. It provides single-step inference, deep temporal inference,
+policy evaluation, action selection, and parameter-learning hooks.
 
 ## Learning under uncertainty
 
@@ -16,9 +16,9 @@ the new context, reducing surprise again. The animation plots VFE surprise
 (the smoothed deviation from an adaptive VFE baseline), rather than raw
 cumulative model evidence.
 
-Continuous-observation likelihoods are intentionally reserved for version 0.2.
-Research applications and domain-specific likelihood construction belong in
-the `examples/` directory or in separate repositories.
+Version 0.2 adds domain-independent continuous-observation inference. Research
+applications and domain-specific likelihood construction remain in separate
+repositories.
 
 ## Installation
 
@@ -116,6 +116,37 @@ Use `DeepTemporalInference(horizon=...)` for policy-dependent beliefs over
 multiple time steps. Deep preferences have shape
 `(number_of_outcomes, horizon)`.
 
+## Continuous observations
+
+The likelihood component selects observation semantics; the inference
+component independently selects the temporal algorithm:
+
+```python
+likelihood = ContinuousLikelihood(
+    likelihood_fn=density,             # density(value, modality) -> state tensor
+    observation_grids=[rssi_grid],
+    log_preferences={0: rssi_log_preferences},
+    modality_dependencies=[[0, 1]],
+)
+
+agent = ActiveInfAgent(
+    model=model,
+    likelihood=likelihood,
+    inference=ShallowInference(),      # or DeepTemporalInference(...)
+)
+```
+
+For an existing domain model that implements `likelihoods`, `get_o_grid`, and
+`log_preferences`, use `ContinuousLikelihood.from_model(...)`. PyAIF then
+integrates densities on the supplied grids for preference and information-gain
+evaluation. Small state spaces are enumerated exactly; large ones use
+reproducible Monte Carlo sampling controlled by `policy_samples`,
+`exact_state_limit`, and `random_seed`.
+
+The optional `learning_fn`, `preference_learning_fn`, and
+`parameter_information_gain_fn` callbacks keep domain-specific updates outside
+the reusable agent core.
+
 ## Performance and parallel policies
 
 Deep temporal inference automatically batches independent policies into NumPy
@@ -167,6 +198,8 @@ should use the component constructor and lifecycle above.
   control dimensions, controllable factors, and optional policies.
 - `CategoricalLikelihood` owns observation likelihoods (`A`), preferences
   (`C`), and modality-to-factor dependencies.
+- `ContinuousLikelihood` owns density evaluation, observation grids, log
+  preferences, dependencies, and optional domain learning hooks.
 - `ShallowInference` performs single-step factorised inference.
 - `DeepTemporalInference` performs marginal message passing over a horizon.
 - `PyAIF.learning` contains reusable categorical updates for `A`, `B`, `C`,
@@ -178,6 +211,8 @@ See [Model shapes](docs/model-shapes.md) and
 ## Examples
 
 - `examples/quickstart_discrete.py`: minimal categorical agent.
+- `examples/quickstart_continuous.py`: minimal Gaussian continuous-observation
+  agent.
 - `examples/learning_under_uncertainty/`: deep temporal parameter-learning
   experiments under epistemic and aleatoric uncertainty.
 
@@ -187,16 +222,18 @@ from the reusable PyAIF package.
 The automated regression suite covers the reusable component API and executes
 one trial of each parameter-learning experiment.
 
-Run the minimal component example with:
+Run the minimal component examples with:
 
 ```bash
 python examples/quickstart_discrete.py
+python examples/quickstart_continuous.py
 ```
 
 ## Version policy
 
 - `0.1.x`: categorical observations and discrete parameter learning.
-- `0.2.x`: planned continuous-observation likelihood components.
+- `0.2.x`: continuous-observation likelihood components for discrete hidden
+  states.
 
 Behavioral changes are protected with numerical regression tests. Research
 experiments may evolve independently from the packaged API.

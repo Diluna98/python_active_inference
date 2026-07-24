@@ -7,6 +7,7 @@ from typing import Any, Optional, Sequence
 import numpy as np
 
 from PyAIF.inference.base import map_policies
+from PyAIF.inference.continuous import continuous_policy_terms
 from PyAIF.numerics import log_stable_probability, softmax
 
 
@@ -165,24 +166,36 @@ def infer_shallow_policies(
         reported_information_gain = None
         expected_states = agent.get_expected_states(policy[0])
 
-        ambiguity = agent.calculate_policy_ambiguity(
-            0,
-            policy_index,
-            expected_states,
-        )
-        risk = agent.calculate_policy_risk(
-            0,
-            policy_index,
-            expected_states,
-        )
-        if agent.learning_D:
-            information_gain += agent.calculate_pD_info_gain(policy_index)
-        if agent.learning_A:
-            likelihood_information_gain = agent.calculate_pA_info_gain(
-                time_step,
+        if agent.continous_obs:
+            risk, ambiguity, _ = continuous_policy_terms(
+                agent.likelihood,
+                expected_states,
+                seed_offset=time_step * len(agent.policies) + policy_index,
+            )
+        else:
+            ambiguity = agent.calculate_policy_ambiguity(
+                0,
                 policy_index,
                 expected_states,
             )
+            risk = agent.calculate_policy_risk(
+                0,
+                policy_index,
+                expected_states,
+            )
+        if agent.learning_D:
+            information_gain += agent.calculate_pD_info_gain(policy_index)
+        if agent.learning_A:
+            if agent.continous_obs:
+                likelihood_information_gain = (
+                    agent.likelihood.parameter_information_gain(expected_states)
+                )
+            else:
+                likelihood_information_gain = agent.calculate_pA_info_gain(
+                    time_step,
+                    policy_index,
+                    expected_states,
+                )
             information_gain += likelihood_information_gain
             reported_information_gain = likelihood_information_gain
         if agent.learning_B:
@@ -192,11 +205,12 @@ def infer_shallow_policies(
                 expected_states,
             )
 
+        expected_free_energy = -risk + ambiguity + information_gain
         return (
             float(risk),
             float(ambiguity),
             reported_information_gain,
-            float(-risk + ambiguity + information_gain),
+            float(expected_free_energy),
         )
 
     results = map_policies(evaluate_policy, len(agent.policies), policy_workers)
