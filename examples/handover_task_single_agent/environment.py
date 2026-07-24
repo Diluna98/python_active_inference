@@ -193,7 +193,7 @@ class SortingEnv:
         else:
             self.endeff_position = agent_action
             self.h_feedback = 'negative'
-            if agent_action is not 'ideal' and self.slot_status[agent_action] == 'empty':
+            if agent_action != 'ideal' and self.slot_status[agent_action] == 'empty':
                 self.slot_status[agent_action] = self.pickup_object
                 self.obj_placement = True
             else:
@@ -228,4 +228,4 @@ for t in range(5):
         action = 0
 
     obs = env.step(env.slots[action - 1] if action != 0 else 'ideal')  # map index to string
-"""  
+"""

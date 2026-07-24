@@ -756,7 +756,13 @@ class ActiveInfAgent:
             self.disparity_nu = self.create_object_tensor('zeros', self.temporal_horizon, self.num_modalities, last_dim = self.obs_dim) 
             self.chosen_policy = self.create_object_tensor('NaN', self.temporal_horizon) 
             self.expected_obs_chosen = self.create_object_tensor('NaN', self.temporal_horizon, self.num_modalities, last_dim=self.obs_dim)
-            self.policy_dep_expected_obs = self.create_object_tensor('NaN', self.num_policies, 2, self.num_modalities, last_dim=self.obs_dim)
+            self.policy_dep_expected_obs = self.create_object_tensor(
+                'NaN',
+                self.num_policies,
+                self.temporal_horizon,
+                self.num_modalities,
+                last_dim=self.obs_dim,
+            )
             self.planning_from = 0
             self.planning_to = self.temporal_horizon
             self.observations = {}
@@ -1251,7 +1257,12 @@ class ActiveInfAgent:
                         if tau <= t:
                             # Third message
                             if factor != 5:
-                                third_msg = self.expected_log_likelihood_einsum(self.observations[tau, :], factor, policy_idx, tau)
+                                third_msg = self.expected_log_likelihood_einsum(
+                                    self.observations[tau],
+                                    factor,
+                                    policy_idx,
+                                    tau,
+                                )
                             
                         if tau == 0:
                             # First message
@@ -1266,7 +1277,7 @@ class ActiveInfAgent:
                                 #obs_mod = int(self.observations[trial, tau, 4])
                                 #qs_future = self.one_hot_encode(4, int(obs_mod), self.obs_dim)
                                 qs_future = self.policy_dep_posteriors[policy_idx, tau+1, factor+1]
-                                transposed_B = self.transpose_Bfa(self.B[factor][:, :, action_tau[factor]])
+                                transposed_B = self.transpose_Bfa(self.B[factor][:, :, 0])
                                 second_msg = self.log_stable(transposed_B.dot(qs_future)) 
 
                         elif tau == self.temporal_horizon-1:
@@ -1285,7 +1296,7 @@ class ActiveInfAgent:
                                     #qs_prev = self.policy_dep_posteriors[policy_idx, tau-1, factor]
                                 #first_msg = self.log_stable(self.B[factor][:, :, action_tau[factor]].dot(qs_prev))
                                 qs_prev = self.policy_dep_posteriors[policy_idx, tau-1, factor+1]
-                                first_msg = self.log_stable(self.B[factor][:, :, action_tau[factor]].dot(qs_prev))
+                                first_msg = self.log_stable(self.B[factor][:, :, 0].dot(qs_prev))
                                 # Second message
                                 second_msg = np.zeros((self.D[factor]).shape)
                         else:
@@ -1307,7 +1318,7 @@ class ActiveInfAgent:
                                     #qs_prev = self.policy_dep_posteriors[policy_idx, tau-1, factor]
                                 #first_msg = self.log_stable(self.B[factor][:, :, action_tau[factor]].dot(qs_prev))
                                 qs_prev = self.policy_dep_posteriors[policy_idx, tau-1, factor+1]
-                                first_msg = self.log_stable(self.B[factor][:, :, action_tau[factor]].dot(qs_prev))
+                                first_msg = self.log_stable(self.B[factor][:, :, 0].dot(qs_prev))
 
                                 # Second message
                                 #if not np.isnan(self.observations[trial, tau, 4]):
@@ -1316,7 +1327,7 @@ class ActiveInfAgent:
                                 #else:
                                     #qs_future = self.policy_dep_posteriors[policy_idx, tau+1, factor]
                                 qs_future = self.policy_dep_posteriors[policy_idx, tau+1, factor+1]
-                                transposed_B = self.transpose_Bfa(self.B[factor][:, :, action_tau[factor]])
+                                transposed_B = self.transpose_Bfa(self.B[factor][:, :, 0])
                                 second_msg = self.log_stable(transposed_B.dot(qs_future))
 
                         # Compute state prediction error
@@ -3146,7 +3157,6 @@ class ActiveInfAgent:
                         # This part needs to list each individual posterior's dimension
                         # For 'b,c,d,e,f' each letter is a separate operand in the string
                         other_factors_dims = [alphabet[f] for f in (self.mod_dep[modal_idx]) if f != factor]
-                        other_factors_dims = other_factors_dims[:2]
                         
                         other_factors_str = ",".join(other_factors_dims)
                         if other_factors_dims: # Check if there are other factors to marginalize
