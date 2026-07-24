@@ -17,7 +17,7 @@ PyAIF = ["likelihood_models/*.py", "likelihood_models/*.npz"]
 
 [project]
 name = "pyaif-toolkit"
-version = "0.1.1"
+version = "0.2.0"
 description = "A Python package for Active Inference agents and simulations"
 authors = [
   { name = "Diluna A. Warnakulasuriya" }

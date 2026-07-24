@@ -1,6 +1,6 @@
 # Model shapes
 
-PyAIF v0.1 represents each collection of factor- or modality-specific arrays
+PyAIF represents each collection of factor- or modality-specific arrays
 as a one-dimensional NumPy object array.
 
 ## Hidden-state factors
@@ -31,6 +31,18 @@ modality_dependencies[m] == [0, 2]
 ```
 
 Each conditional distribution is normalized over the first, observation axis.
+
+For continuous modality `m`:
+
+- `likelihood_fn(value, m)` returns a nonnegative density tensor whose axes
+  follow `modality_dependencies[m]`.
+- `observation_grids[m]` is a strictly increasing one-dimensional array.
+- `log_preferences[m]` has the same length as that grid.
+- a joint preference keyed by `(m, n)` has shape
+  `(len(observation_grids[m]), len(observation_grids[n]))`.
+
+Continuous observations are scalar values, while hidden states remain
+categorical and factorised.
 
 ## Preferences
 

@@ -3,6 +3,10 @@ __pycache__/
 *.pyc
 .pytest_cache/
 pytest-cache-files-*/
+pytest-v02-*/
+.pytest-release-temp/
+.release-validation/
+.tool-temp/
 .venv/
 
 # Packaging

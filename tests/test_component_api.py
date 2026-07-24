@@ -4,12 +4,14 @@ import pytest
 from PyAIF import (
     ActiveInfAgent,
     CategoricalLikelihood,
+    ContinuousLikelihood,
     DeepTemporalInference,
     GenerativeModel,
     ShallowInference,
     deep_expected_free_energy,
 )
 from PyAIF.inference.deep_temporal import _infer_deep_policy_states
+from PyAIF.inference.continuous import continuous_policy_terms
 
 
 def object_array(*arrays):
@@ -55,8 +57,8 @@ def test_component_api_requires_all_components():
         ActiveInfAgent(model=model)
 
 
-def test_v01_rejects_continuous_observation_mode_clearly():
-    with pytest.raises(NotImplementedError, match="planned for v0.2"):
+def test_legacy_continuous_flag_requires_component_api():
+    with pytest.raises(ValueError, match="ContinuousLikelihood"):
         ActiveInfAgent(
             states_dim=[2],
             obs_dim=[1],
@@ -66,6 +68,206 @@ def test_v01_rejects_continuous_observation_mode_clearly():
             D=object_array(np.ones(2)),
             continous_obs=True,
         )
+
+
+def continuous_likelihood():
+    grid = np.linspace(-2.0, 2.0, 101)
+    means = np.array([-1.0, 1.0])
+    sigma = 0.2
+
+    def density(observation, modality):
+        del modality
+        z = (observation - means) / sigma
+        return np.exp(-0.5 * z**2) / (sigma * np.sqrt(2.0 * np.pi))
+
+    preference_probability = np.exp(2.0 * grid)
+    preference_probability /= preference_probability.sum()
+    return ContinuousLikelihood(
+        likelihood_fn=density,
+        observation_grids=[grid],
+        log_preferences={0: np.log(preference_probability)},
+        modality_dependencies=[[0]],
+    )
+
+
+def test_continuous_likelihood_rejects_incompatible_state_shape():
+    likelihood = continuous_likelihood()
+    likelihood.validate_states([2])
+    with pytest.raises(ValueError, match="state shape"):
+        likelihood.validate_states([3])
+
+
+def test_continuous_shallow_agent_updates_beliefs_and_prefers_desired_outcome():
+    inference = ShallowInference(message_passing_iterations=16)
+    model, _ = make_components(inference)
+    agent = ActiveInfAgent(
+        model=model,
+        likelihood=continuous_likelihood(),
+        inference=inference,
+        action_selection="deterministic",
+    )
+
+    agent.reset()
+    agent.observe([-1.0])
+    agent.infer_states()
+
+    assert agent.continous_obs
+    assert agent.posteriors[0][0] > 0.999
+    expected_free_energy, _ = agent.infer_policies()
+    assert np.all(np.isfinite(np.asarray(expected_free_energy, dtype=float)))
+    assert int(agent.select_action()[0]) == 1
+
+
+def test_continuous_deep_agent_runs_temporal_inference_and_policy_scoring():
+    inference = DeepTemporalInference(
+        horizon=2,
+        message_passing_iterations=8,
+    )
+    model, _ = make_components(inference)
+    agent = ActiveInfAgent(
+        model=model,
+        likelihood=continuous_likelihood(),
+        inference=inference,
+        action_selection="deterministic",
+    )
+
+    agent.reset()
+    agent.observe([-1.0])
+    agent.infer_states()
+    expected_free_energy, variational_free_energy = agent.infer_policies()
+
+    assert np.all(np.isfinite(np.asarray(expected_free_energy, dtype=float)))
+    assert np.all(np.isfinite(np.asarray(variational_free_energy, dtype=float)))
+    assert np.isclose(agent.posterior_pi.sum(), 1.0)
+    assert all(np.isfinite(agent.last_policy_inference.risk))
+    assert all(np.isfinite(agent.last_policy_inference.ambiguity))
+
+
+def test_continuous_joint_preferences_support_multiple_modalities():
+    grid = np.linspace(-2.0, 2.0, 31)
+
+    def density(observation, modality):
+        means = np.array([-1.0, 1.0]) if modality == 0 else np.array([1.0, -1.0])
+        return np.exp(-0.5 * ((observation - means) / 0.3) ** 2)
+
+    joint_probability = np.exp(
+        grid[:, None] + grid[None, :] - (grid[:, None] - grid[None, :]) ** 2
+    )
+    joint_probability /= joint_probability.sum()
+    likelihood = ContinuousLikelihood(
+        likelihood_fn=density,
+        observation_grids=[grid, grid],
+        log_preferences={
+            0: -100.0,
+            (0, 1): np.log(joint_probability),
+        },
+        modality_dependencies=[[0], [0]],
+    )
+    inference = ShallowInference()
+    model, _ = make_components(inference)
+    agent = ActiveInfAgent(
+        model=model,
+        likelihood=likelihood,
+        inference=inference,
+    )
+
+    agent.reset()
+    agent.observe([-1.0, 1.0])
+    agent.infer_states()
+    expected_free_energy, _ = agent.infer_policies()
+
+    assert np.all(np.isfinite(np.asarray(expected_free_energy, dtype=float)))
+    assert likelihood.preference_dependencies == ((0, 1),)
+
+
+def test_continuous_learning_uses_domain_hook_without_core_domain_assumptions():
+    updates = []
+    preference_updates = []
+    likelihood = continuous_likelihood()
+    likelihood.learning_fn = lambda observations, beliefs, learning_rate: (
+        updates.append((observations.copy(), beliefs.copy(), learning_rate))
+    )
+    likelihood.preference_learning_fn = lambda beliefs, learning_rate: (
+        preference_updates.append((beliefs.copy(), learning_rate))
+    )
+    inference = ShallowInference(message_passing_iterations=2)
+    model, _ = make_components(inference)
+    agent = ActiveInfAgent(
+        model=model,
+        likelihood=likelihood,
+        inference=inference,
+        learning_A=True,
+        learning_C=True,
+        learning_window=2,
+        learning_rate=0.25,
+    )
+    agent.reset()
+    agent.observations_cache[0, 0] = -1.0
+    agent.observations_cache[1, 0] = 1.0
+    agent.posteriors_cache[0, 0] = np.array([0.9, 0.1])
+    agent.posteriors_cache[1, 0] = np.array([0.2, 0.8])
+
+    result = agent.perform_learning(trial=0, actual_t=1)
+
+    assert result.likelihood
+    assert result.preference
+    assert len(updates) == 1
+    assert len(preference_updates) == 1
+    np.testing.assert_allclose(updates[0][0].astype(float), [[-1.0], [1.0]])
+    assert updates[0][2] == 0.25
+
+
+@pytest.mark.parametrize(
+    "serial_inference,parallel_inference",
+    [
+        (ShallowInference(), ShallowInference(policy_workers=2)),
+        (
+            DeepTemporalInference(horizon=2),
+            DeepTemporalInference(horizon=2, policy_workers=2),
+        ),
+    ],
+)
+def test_continuous_parallel_policy_scoring_matches_serial(
+    serial_inference,
+    parallel_inference,
+):
+    agents = []
+    for inference in (serial_inference, parallel_inference):
+        model, _ = make_components(inference)
+        likelihood = continuous_likelihood()
+        likelihood.exact_state_limit = 1
+        likelihood.policy_samples = 100
+        agent = ActiveInfAgent(
+            model=model,
+            likelihood=likelihood,
+            inference=inference,
+        )
+        agent.reset()
+        agent.observe([-1.0])
+        agent.infer_states()
+        agent.infer_policies()
+        agents.append(agent)
+
+    np.testing.assert_allclose(
+        np.asarray(agents[1].G_policy, dtype=float),
+        np.asarray(agents[0].G_policy, dtype=float),
+    )
+    np.testing.assert_allclose(agents[1].posterior_pi, agents[0].posterior_pi)
+
+
+def test_continuous_sampling_normalizes_numerically_imprecise_beliefs():
+    likelihood = continuous_likelihood()
+    likelihood.exact_state_limit = 1
+    likelihood.policy_samples = 50
+
+    risk, ambiguity, predictions = continuous_policy_terms(
+        likelihood,
+        [np.array([0.5, 0.500000000001])],
+    )
+
+    assert np.isfinite(risk)
+    assert np.isfinite(ambiguity)
+    assert np.isclose(predictions[0].sum(), 1.0)
 
 
 def test_categorical_likelihood_rejects_incompatible_state_shape():

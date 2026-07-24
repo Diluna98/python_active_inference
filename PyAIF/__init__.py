@@ -1,6 +1,4 @@
-"""Public API for PyAIF's discrete active-inference package."""
-
-from importlib.metadata import PackageNotFoundError, version
+"""Public API for PyAIF active-inference agents."""
 
 from . import utils
 from .aif_agent import ActiveInfAgent
@@ -16,7 +14,7 @@ from .inference import (
     deep_categorical_policy_risk,
     deep_expected_free_energy,
 )
-from .likelihoods import CategoricalLikelihood
+from .likelihoods import CategoricalLikelihood, ContinuousLikelihood
 from .learning import (
     CategoricalLearningResult,
     categorical_observation_evidence,
@@ -24,15 +22,13 @@ from .learning import (
     update_dirichlet_parameters,
 )
 
-try:
-    __version__ = version("pyaif-toolkit")
-except PackageNotFoundError:
-    __version__ = "0.1.1"
+__version__ = "0.2.0"
 
 __all__ = [
     "__version__",
     "ActiveInfAgent",
     "CategoricalLikelihood",
+    "ContinuousLikelihood",
     "CategoricalLearningResult",
     "DeepPolicyInferenceResult",
     "DeepStateInferenceResult",

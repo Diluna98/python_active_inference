@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## 0.2.0 - 2026-07-24
+
+### Added
+
+- `ContinuousLikelihood` with scalar continuous modalities, per-modality state
+  dependencies, observation grids, individual or joint log preferences, and
+  optional domain learning and parameter-information-gain hooks.
+- Continuous state and policy inference for both `ShallowInference` and
+  `DeepTemporalInference`.
+- Exact policy evaluation for small latent spaces and reproducible,
+  vectorized Monte Carlo evaluation for larger spaces.
+- `ContinuousLikelihood.from_model(...)` for adapting domain likelihood files
+  without importing application code into PyAIF.
+- A minimal Gaussian continuous-observation example and regression tests.
+
+### Changed
+
+- `ActiveInfAgent` now infers categorical versus continuous observation
+  semantics from the likelihood component.
+- Domain-specific continuous parameter updates are delegated through public
+  callbacks instead of being hard-coded in the agent.
+
 ## 0.1.1 - 2026-07-24
 
 ### Added
