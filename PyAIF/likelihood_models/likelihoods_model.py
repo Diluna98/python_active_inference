@@ -101,9 +101,9 @@ class MetaLikelihoodModel:
                 # uncertainty increases with degradation
                 self.sigma_lat[r, u] = sigma_lat_1d[r]* cpu_scale[u]
         """
-        if os.path.exists("external_lm_params.json"):
+        if os.path.exists("external_lm_params_training.json"):
         
-            with open("external_lm_params.json", "r") as f:
+            with open("external_lm_params_training.json", "r") as f:
                 data = json.load(f)
             self.mu_err = np.array(data["mu_err"])
             
@@ -111,8 +111,8 @@ class MetaLikelihoodModel:
             self.alpha_err = np.array(data["alpha_err"])
             self.beta_err = np.array(data["beta_err"])
             
-            self.mu_cpu = np.array([20.0, 57.5, 87.5], dtype=np.float64)
-            self.sigma_cpu = np.array([8.0, 10.0, 8.0], dtype=np.float64)
+            self.mu_cpu = np.array(data["mu_cpu"])
+            self.sigma_cpu = np.array(data["sigma_cpu"])
             
             self.mu_lat = np.array(data["mu_lat"])
             self.sigma_lat = np.array(data["sigma_lat"])
@@ -180,16 +180,20 @@ class MetaLikelihoodModel:
         if self.pref_dep is not None:
 
             joint = self.pref_dep[0]
-            complexity = np.arange(100)
-            pred_error = np.arange(100)
-            C, P = np.meshgrid(complexity, pred_error, indexing='ij')
-            C_norm = C / (C.max() + 1e-8)
-            P_norm = P / (P.max() + 1e-8)
-            P_centered = P_norm
-            threshold = 0.3
-            gain = np.tanh(5 * (C_norm - threshold))
-            beta = 3
-            C_joint = -beta * C_norm * P_centered
+            # modality 0 = context / complexity
+            # modality 1 = prediction error
+
+            C, P = np.meshgrid(np.arange(100), np.arange(100), indexing="ij")
+
+            context = C / (C.max() + self.eps)
+            err = P / (P.max() + self.eps)
+
+            context_gate = 1.0 / (1.0 + np.exp(-6.0 * (context - 0.45)))
+
+            base_err_weight = 20.0
+            context_err_weight = 15.0
+
+            C_joint = -(base_err_weight + context_err_weight * context_gate) * err
 
             C_joint_probs = self._softmax(C_joint.flatten(), gamma=1.0).reshape(C_joint.shape)
             preferences_dict[joint] = np.log(C_joint_probs + self.eps)
@@ -231,26 +235,21 @@ class MetaLikelihoodModel:
         # ------------------------------------------------------------------
         # 3. Latency: Highly sensitive cost
         # ------------------------------------------------------------------
-        # 1. Create a 100-step grid indices
-        x = np.arange(100) 
+        lat_grid = np.linspace(self.lat_min, self.lat_max, 100)
 
-        # 2. Define the shift point where it begins to fall faster
-        delay_index = 5  
+        comfort_ms = 600.0
+        deadline_ms = 800.0
 
-        # 3. Create a continuous, multi-slope curve
-        # Start with a gentle, slight decrease from the very beginning
-        initial_slope = -0.02
-        C_lat = initial_slope * x
+        linear_strength = 1.0
+        deadline_strength = 2.0
 
-        # 4. After the delay index, add an extra steeper downward slope
-        steep_slope = -0.1
-        C_lat[delay_index:] += steep_slope * (x[delay_index:] - delay_index)
+        lat_linear = lat_grid / deadline_ms
 
-        # 5. Softmax with a low gamma to keep the linear behavior intact
-        gamma = 0.1 
-        C_lat_probs = self._softmax(C_lat)
+        lat_excess = np.clip((lat_grid - comfort_ms) / (deadline_ms - comfort_ms), 0.0, None)
 
-        # 6. Compute the final log-probabilities
+        C_lat = -(linear_strength * lat_linear + deadline_strength * lat_excess**2)
+
+        C_lat_probs = self._softmax(C_lat, gamma=1.0)
         preferences_dict[2] = np.log(C_lat_probs + self.eps)
         
         #plt.plot(preferences_dict[1])
@@ -482,7 +481,7 @@ class MetaLikelihoodModel:
         qs_con = qs[1]
         qs_cpu = qs[2]#np.array([0., 0., 1.])#qs[2]
         for modality_idx in range(4):
-            if modality_idx in [1]: # For these modalities, we do not perform learning.
+            if modality_idx in [0, 3]: # For these modalities, we do not perform learning.
                 continue
             # 1. Prepare Observations and Beliefs
             obs = observations[0][modality_idx]

@@ -338,20 +338,58 @@ def change_model(agent, states_dim=None, num_controls=None, meta_action=None):
     agent.pD = D
     agent.D = copy.deepcopy(agent.pD)
 
+def rule_based_policy(context_signal, cpu_availability_obs, previous_model=None):
+    # CPU availability bins
+    cpu_low = cpu_availability_obs < 35
+    cpu_medium = 35 <= cpu_availability_obs < 70
+    cpu_high = cpu_availability_obs >= 70
 
+    # Context / informativeness bins
+    context_low = context_signal < 0.30
+    context_medium = 0.30 <= context_signal < 1.5
+    context_high = context_signal >= 1.5
+
+    if cpu_low:
+        # High external load: avoid 10x10 and 20x20
+        if context_low:
+            desired = 0 #"2x2"
+        else:
+            desired = 1 #"5x5"
+
+    elif cpu_medium:
+        if context_low:
+            desired = 0 # "2x2"
+        elif context_medium:
+            desired = 1 # "5x5"
+        else:
+            desired = 2 # "10x10"
+
+    else:  # cpu_high
+        if context_low:
+            desired = 0 #"2x2"
+        elif context_medium:
+            desired = 1 #"5x5"
+        else:
+            desired = 2 #"10x10"
+
+    # Persistence / keep action
+    if previous_model is not None and desired == previous_model:
+        desired = 4  # Keep current model
+    print(f"Chosen action: {desired} based on context_signal={context_signal:.2f} and cpu_availability_obs={cpu_availability_obs:.2f}")
+    return desired
 
 if __name__ == "__main__":
     # Create a folder to keep things tidy
     output_dir = "profiling_results"
     os.makedirs(output_dir, exist_ok=True)
 
-    TRIALS_PER_RES =  500 # Number of random starts per resolution
+    TRIALS_PER_RES =  50 # Number of random starts per resolution
     STEPS_PER_TRIAL = 100 # Limit steps so we don't get stuck in one spot
     #NUM_SIMULATIONS = 1
     MODEL_SIZES = [20]
     RES_SIZES = [2, 5, 10, 20]  # Different resolutions to test 
+    START_LOCATIONS = [(12.5, 12.5), (487.5, 487.5), (12.5, 487.5), (487.5, 12.5)]
     GOAL_LOCATIONS = [(212.5, 312.5)]#[(375, 375), (250, 450), (425, 325), (212.5, 312.5)]
-    START_LOCATIONS = [(487.5, 487.5)]#[(12.5, 12.5), (487.5, 487.5), (12.5, 487.5), (487.5, 12.5)]
     # Constants
     TOTAL_SPACE = 500
     GRID_SIZE = MODEL_SIZES[0] # e.g., 10
@@ -369,13 +407,12 @@ if __name__ == "__main__":
     for start in START_LOCATIONS:
         for goal in GOAL_LOCATIONS:
             for res_size in [2]:
-                with open(f"Artifacts_cpu_low_{start[0]}_{start[1]}_{goal[0]}_{goal[1]}_ours_training.jsonl", "w") as f:
+                with open(f"Artifacts_cpu_load_medium_{start[0]}_{start[1]}_{goal[0]}_{goal[1]}_rule_based.jsonl", "w") as f:
                     print(f"\n--- PROFILING RESOLUTION: {res_size}x{res_size} ---")
                     
                     B, D, num_states, num_obs, num_controls, control_fac_idx, Temp_horizon = create_generative_model(MODEL_SIZES[0], res_size)
                     
                     current_res = res_size
-                    
                     meta_agent = MetaAgent()
 
 
@@ -383,14 +420,10 @@ if __name__ == "__main__":
                     meta_latency_list = []
                     pred_err_list = []
                     distance_to_goal_list = []
+                    meta_action_confidance_list = []
                     meta_obs_list = []
                     task_obs_list = []
-                    meta_action_confidance_list = []
-                    task_minimum_vfe_list = []
-                    meta_risk_list = []
-                    meta_ambiguity_list = []
-                    meta_info_gain_list = []
-
+                    
 
                     #plotter = RuntimeCuriosityPlotter(total_trials=50)
                     for trial in range(TRIALS_PER_RES):
@@ -417,14 +450,9 @@ if __name__ == "__main__":
                         latency_per_trial = []
                         meta_latency_per_trial = []
                         pred_err_per_trial = []
-
-                        meta_obs_per_trial = []
-                        task_obs_per_trial = []
                         meta_action_confidance_per_trial = []
-                        task_minimum_vfe_per_trial = []
-                        meta_risk_policies_per_trial = []
-                        meta_ambiguity_policies_per_trial = []
-                        meta_info_gain_policies_per_trial = []
+                        task_obs_per_trial = []
+                        meta_obs_per_trial = []
                         distance_to_goal_per_trial = []
                         for t in range(STEPS_PER_TRIAL):
                             try:
@@ -443,8 +471,10 @@ if __name__ == "__main__":
 
                                 task_obs_per_trial.append(obs)
                                 distance_to_goal_per_trial.append(env.get_distance_to_the_goal())
-                                task_minimum_vfe_per_trial.append(np.max(ainf_agent.F_policy))
+
                                 if chosen_action is not None:
+                                    #chosen_action[0] = 0
+                                    #chosen_action[1] = 2
                                     if t % 3 == 0:
                                         # Get Stats
                                         stats = ainf_agent.get_stats(t)
@@ -458,38 +488,18 @@ if __name__ == "__main__":
                                         cpu_availability = cpu_monitor(current_res, inference_duration)
 
                                         
+                                        #unused = meta_agent.run_meta_inference(RES_SIZES.index(current_res), (info_gain_proxy, mean_surprise, inference_duration, cpu_availability))
                                         start_time = time.perf_counter()
-                                        meta_action = meta_agent.run_meta_inference(RES_SIZES.index(current_res), (info_gain_proxy, mean_surprise, inference_duration, cpu_availability))
+                                        meta_action = rule_based_policy(info_gain_proxy, cpu_availability, previous_model=RES_SIZES.index(current_res))
                                         end_time = time.perf_counter()
-                                        print(meta_agent.meta_agent.posteriors)
-                                        #print(info_gain_proxy)
-                                        
-                                        meta_inference_duration = (end_time - start_time) * 1000-50 # Convert to ms
-                                        meta_latency_per_trial.append(meta_inference_duration)
 
+                                        print(inference_duration)
+                                        meta_inference_duration = (end_time - start_time) * 1000
+                                        meta_latency_per_trial.append(meta_inference_duration)
+                                        p = np.zeros(5)
+                                        p[meta_action] = 1.0
+                                        meta_action_confidance_per_trial.append(p)  # Since it's rule-based, we can assume full confidence
                                         meta_obs_per_trial.append((info_gain_proxy, mean_surprise, inference_duration, cpu_availability))
-                                        
-                                        meta_action_confidance_per_trial.append(meta_agent.meta_agent.posterior_pi)
-                                        
-                                        meta_risk_policies_per_trial.append(meta_agent.meta_agent.risk)
-                                        meta_ambiguity_policies_per_trial.append(meta_agent.meta_agent.ambiguity)
-                                        meta_info_gain_policies_per_trial.append(meta_agent.meta_agent.info_gain)
-                                        
-                                        data = {
-                                                    "mu_err": meta_agent.meta_agent.external_lm.mu_err.tolist(),
-                                                    "kappa_err": meta_agent.meta_agent.external_lm.kappa_err.tolist(),
-                                                    "alpha_err": meta_agent.meta_agent.external_lm.alpha_err.tolist(),
-                                                    "beta_err": meta_agent.meta_agent.external_lm.beta_err.tolist(),
-                                                    "mu_lat": meta_agent.meta_agent.external_lm.mu_lat.tolist(),
-                                                    "sigma_lat": meta_agent.meta_agent.external_lm.sigma_lat.tolist(),
-                                                    "mu_cpu": meta_agent.meta_agent.external_lm.mu_cpu.tolist(),
-                                                    "sigma_cpu": meta_agent.meta_agent.external_lm.sigma_cpu.tolist(),
-                                                }
-                                        
-                                        
-                                        with open("external_lm_params_training.json", "w") as e:
-                                            json.dump(data, e)
-                                        
                                         
                                         if not meta_action == 4:
                                             if not current_res == RES_SIZES[meta_action]:
@@ -507,20 +517,6 @@ if __name__ == "__main__":
                                     ainf_agent.perform_learning(trial)
                                     #ainf_agent.store_parameters()
                                     ainf_agent.initialize_variables()
-                                    """
-                                    data_task = {
-                                        "mu_x": ainf_agent.external_lm.mu_x.tolist(),
-                                        "sigma_x": ainf_agent.external_lm.sigma_x.tolist(),
-                                        "mu_y": ainf_agent.external_lm.mu_y.tolist(),
-                                        "sigma_y": ainf_agent.external_lm.sigma_y.tolist(),
-                                        "mu_signal": ainf_agent.external_lm.mu_signal.tolist(),
-                                        "sigma_signal": ainf_agent.external_lm.sigma_signal.tolist()
-                                    }
-                            
-                                    with open(f"external_lm_params_task_{res_size}.json", "w") as v:
-                                        json.dump(data_task, v)
-                                    """
-                                    
                                     
                                 ainf_agent.step_time(t)
                                 
@@ -539,23 +535,15 @@ if __name__ == "__main__":
                         meta_obs_list.append(np.array(meta_obs_per_trial))
                         task_obs_list.append(np.array(task_obs_per_trial))
                         meta_action_confidance_list.append(np.array(meta_action_confidance_per_trial))
-                        task_minimum_vfe_list.append(np.array(task_minimum_vfe_per_trial))
-                        meta_risk_list.append(np.array(meta_risk_policies_per_trial))
-                        meta_ambiguity_list.append(np.array(meta_ambiguity_policies_per_trial))
-                        meta_info_gain_list.append(np.array(meta_info_gain_policies_per_trial))
 
                     artifacts = {
                         "distance_to_goal": [np.array(trial).tolist() for trial in distance_to_goal_list],
                         "latency": [np.array(trial).tolist() for trial in latency_list], 
                         "prediction_error": [np.array(trial).tolist() for trial in pred_err_list],
-                        "meta_latency": [np.array(trial).tolist() for trial in meta_latency_list],
                         "meta_obs": [np.array(trial).tolist() for trial in meta_obs_list],
                         "task_obs": [np.array(trial).tolist() for trial in task_obs_list],
                         "meta_action_confidance": [np.array(trial).tolist() for trial in meta_action_confidance_list],
-                        "task_minimum_vfe": [np.array(trial).tolist() for trial in task_minimum_vfe_list],
-                        "meta_risk_policies": [np.array(trial).tolist() for trial in meta_risk_list],
-                        "meta_ambiguity_policies": [np.array(trial).tolist() for trial in meta_ambiguity_list],
-                        "meta_info_gain_policies": [np.array(trial).tolist() for trial in meta_info_gain_list]
+                        "meta_latency": [np.array(trial).tolist() for trial in meta_latency_list]
                     }
                     
                     f.write(json.dumps(artifacts) + "\n")

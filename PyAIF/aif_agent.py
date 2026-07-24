@@ -1392,6 +1392,7 @@ class ActiveInfAgent:
             self.risk = []
             self.ambiguity = []
             self.info_gain = []
+            
             for policy_idx, policy in enumerate(self.policies):
                 info_gain_tot = 0
                 cost = 0
