@@ -40,6 +40,10 @@ from PyAIF.inference.deep_temporal import (
     infer_deep_temporal_policies,
     infer_deep_temporal_states,
 )
+from PyAIF.learning import (
+    learn_deep_categorical,
+    learn_shallow_categorical,
+)
 
 EPS_VAL = 1e-16 # global constant for use in spm_log() function
 
@@ -477,6 +481,10 @@ class ActiveInfAgent:
                 self.learning_D = learning_D
                 self.learning_C = learning_C
 
+                if self.learning_A:
+                    self.pA_0 = copy.deepcopy(self.pA)
+                    self.pA_prior = copy.deepcopy(self.pA)
+                    self.pA_complexity = copy.deepcopy(self.pA)
                 if self.learning_B:
                     self.pB_0 = copy.deepcopy(self.pB)
                     self.pB_prior = copy.deepcopy(self.pB)
@@ -765,6 +773,11 @@ class ActiveInfAgent:
             #self.posterior_updates = self.create_object_tensor('NaN', self.total_dop_res, last_dim = [len(self.policies)])
             self.prior_pi = self.create_object_tensor('zeros', self.num_policies)
             self.action_posteriors = self.create_object_tensor('zeros', self.num_factors)       
+            self.action_history = self.create_object_tensor(
+                'NaN',
+                self.num_factors,
+                self.temporal_horizon,
+            )
             #self.action_confidance = self.create_object_tensor('ones', self.temporal_horizon - 1, self.num_factors, last_dim=self.controls_dim)
             #self.vfe_ft = self.create_object_tensor('zeros', len(self.policies), self.temporal_horizon, self.number_of_msg_passing, self.temporal_horizon, self.num_factors)
             #self.normalized_firing_rates = self.create_object_tensor('NaN', len(self.policies), self.temporal_horizon, self.temporal_horizon, self.number_of_msg_passing, last_dim=self.states_dim)
@@ -2226,6 +2239,11 @@ class ActiveInfAgent:
                     for factor_idx in self.controlable_states:
                         self.action_posteriors[factor_idx] = self.policies[policy_idx][t%self.temporal_horizon, factor_idx]
 
+                for factor_idx in self.controlable_states:
+                    self.action_history[
+                        factor_idx,
+                        t % self.temporal_horizon,
+                    ] = self.action_posteriors[factor_idx]
                 return self.action_posteriors, action_list
             else:
                 return None, None
@@ -2337,223 +2355,27 @@ class ActiveInfAgent:
         return features
 
         
-    def perform_learning(self, trial, actual_t = None):
-        
+    def perform_learning(self, trial, actual_t=None):
+        """Apply configured categorical parameter learning.
+
+        ``trial`` remains accepted for compatibility with existing examples;
+        reusable v0.1 learning operates on the current cached trajectory.
+        """
+        if self.continous_obs:
+            raise NotImplementedError(
+                "Continuous parameter learning is planned for PyAIF v0.2."
+            )
         if self.deep_inference:
-            #self.perform_modal_average()
-            if self.learning_C:
-                if self.continous_obs:
-                    self.external_lm.update_C_vectorized(self.bayesian_mod_avg)
-
-                else:
-                    for t in range(self.temporal_horizon):
-                        for modality_idx in range(len(self.pA)):
-                            self.pC[modality_idx][:, t] += self.learning_rate*self.disparity_nu[t, modality_idx]*self.expected_obs_chosen[t, modality_idx]
-            
-            if self.learning_A:
-                if self.continous_obs:
-                    self.external_lm.update_mu_sigma_vectorized(self.observations, self.bayesian_mod_avg)
-                else:
-                    for t in range(self.temporal_horizon):
-                        for modality_idx in range(len(self.pA)):
-                            obs_mod = int(self.observations[t, modality_idx])
-                            A_mm = self.one_hot_encode(modality_idx, int(obs_mod), self.obs_dim)
-                            for factor_idx in range(self.num_factors):
-                                A_mm = np.multiply.outer(A_mm, self.bayesian_mod_avg[trial, t,factor_idx])
-                                            
-                            #A_mm = A_mm * (A_mm == np.max(A_mm))
-                            i = self.pA[modality_idx] > 0
-                            self.pA[modality_idx] = np.where(
-                                i,
-                                self.forgeting_rate * (self.pA[modality_idx] - self.pA_0[modality_idx]) +
-                                self.pA_0[modality_idx] +
-                                self.learning_rate * A_mm,  
-                                self.pA[modality_idx]
-                            )                    
-                            del A_mm
-                            """
-                            A_mm_modality = copy.deepcopy(A_mm[obs_mod])
-                            max_vals = np.max(A_mm_modality, axis=0)
-                            max_only = np.zeros_like(A_mm_modality)
-                            mask = A_mm_modality == max_vals
-                            max_only[mask] = A_mm_modality[mask]
-                            i = max_only > 0
-                            self.pA[modality_idx][obs_mod] = np.where(
-                                i,
-                                self.forgeting_rate * (self.pA[modality_idx][obs_mod] - self.pA_0[modality_idx][obs_mod]) +
-                                self.pA_0[modality_idx][obs_mod] +
-                                self.learning_rate * A_mm_modality,  
-                                self.pA[modality_idx][obs_mod]
-                            )                    
-                            del A_mm
-                            """
-                            
-                    # free energy of a
-                    #for modality_idx in range(len(self.pA)):
-                        #self.Fa[modality_idx] += self.KL_dirichlet(self.pA[modality_idx], self.pA_prior[modality_idx])
-                    self.A = self._normalize_colums(self.pA)
-
-            if self.learning_D:
-                for factor_idx in range(self.num_factors):
-                    if factor_idx in self.controlable_states:
-                        fr = 0
-                    else:
-                        fr = self.forgeting_rate
-                    i = self.bayesian_mod_avg[self.temporal_horizon -1, factor_idx] >= 0.01
-                    self.pD[factor_idx] = np.where(
-                        i,
-                        fr * (self.pD[factor_idx] - self.pD_0[factor_idx]) 
-                        + self.pD_0[factor_idx] 
-                        + self.learning_rate * self.bayesian_mod_avg[self.temporal_horizon -1, factor_idx], #self.temporal_horizon -1
-                        self.pD[factor_idx]
-                    )                
-                
-                    # free energy of d
-                    #self.Fd[factor_idx] = self.KL_dirichlet(self.pD[factor_idx], self.pD_prior[factor_idx])
-                self.D = self._normalize_colums(self.pD)
-
-            if self.learning_B:
-                
-                for t in range(self.temporal_horizon):
-                    if t > 0:
-                        
-                        for factor_idx in range(self.num_factors):
-                            action = int(self.action_posteriors[factor_idx, t-1])
-                            if factor_idx not in self.controlable_states:
-                                continue
-                            
-                            state_before = self.bayesian_mod_avg[trial, t-1, factor_idx]
-                            state_after = self.bayesian_mod_avg[trial, t, factor_idx]
-                            joint_states = np.outer(state_after, state_before)
-                            #joint_states = joint_states*self.action_confidance[t-1, factor_idx][action]
-                            joint_states *= (self.B[factor_idx][:, :, action] > 0).astype("float")
-                            
-                            # Get index of column containing the highest value
-                            max_col_idx = np.unravel_index(np.argmax(joint_states), joint_states.shape)[1]
-
-                            # Create a mask for selecting only that column
-                            col_mask = np.zeros_like(joint_states)
-                            col_mask[:, max_col_idx] = joint_states[:, max_col_idx]
-                            # Update only that column in self.pB
-                            
-                            #i = self.pB[factor_idx][:, :, action] > 0
-                            i = col_mask > 0
-                            self.pB[factor_idx][:, :, action] = np.where(
-                                i,
-                                self.forgeting_rate * (self.pB[factor_idx][:, :, action] - self.pB_0[factor_idx][:, :, action]) +
-                                self.pB_0[factor_idx][:, :, action] +
-                                self.learning_rate * col_mask,
-                                self.pB[factor_idx][:, :, action]
-                            )
-                            del joint_states, state_before, state_after, i, col_mask
-                            
-                            """
-                            i = self.pB[factor_idx][:, :, action] > 0
-                            self.pB[factor_idx][:, :, action] = np.where(
-                                i,
-                                self.forgeting_rate*(self.pB[factor_idx][:, :, action] - self.pB_0[factor_idx][:, :, action])
-                                + self.pB_0[factor_idx][:, :, action]
-                                + self.learning_rate*joint_states,
-                                self.pB[factor_idx][:, :, action]
-                            )
-                            del joint_states, state_before, state_after, i
-                            """
-                        """
-                        for policy_idx, policy in enumerate(self.policies):
-                            action = policy[t-1, factor_idx]
-                            state_before = copy.deepcopy(self.policy_dep_posteriors[policy_idx, t-1, factor_idx])
-                            state_after = copy.deepcopy(self.policy_dep_posteriors[policy_idx, t, factor_idx])
-                            joint_states = np.outer(state_after, state_before)
-                            joint_states = joint_states*self.posterior_pi[t][policy_idx]
-                            joint_states *= (self.B[factor_idx][:, :, action] > 0).astype("float")
-                            i = joint_states > 0
-                            self.pB[factor_idx][:, :, action] = np.where(
-                                i,
-                                self.forgeting_rate*(self.pB[factor_idx][:, :, action] - self.pB_0[factor_idx][:, :, action])
-                                                    + self.pB_0[factor_idx][:, :, action]
-                                                    +self.learning_rate*joint_states,
-                                                    self.pB[factor_idx][:, :, action])
-                            del joint_states, state_before, state_after, i
-                        """ 
-                self.B = self._normalize_colums(self.pB)
-            if self.learning_E:
-                self.pE = self.forgeting_rate*(self.pE - self.pE_0) + self.pE_0 + self.learning_rate*self.posterior_pi
-                # negative free energy of e
-                self.Fe = self.KL_dirichlet(self.pE, self.E)
-        
+            self.last_learning = learn_deep_categorical(self)
         else:
-            if self.continous_obs:
-                self.external_lm.update_mu_sigma_vectorized(self.observations_cache, self.posteriors)
-            else:
-                # Learning in shallow inference after accumulating sufficient evidence in each learning window.
-                if actual_t%self.learning_window == self.learning_window-1:
-                    if self.learning_A:
-                        for t_i in range(self.learning_window):
-                            for modality_idx in range(len(self.pA)):
-                                obs_mod = int(self.observations_cache[t_i, modality_idx])
-                                A_mm = self.one_hot_encode(modality_idx, int(obs_mod), self.obs_dim)
-                                for factor_idx in range(self.num_factors):
-                                    A_mm = np.multiply.outer(A_mm, self.posteriors_cache[t_i,factor_idx])
-                                                
-                                i = self.pA[modality_idx] > 0
-                                self.pA[modality_idx] = np.where(
-                                    i,
-                                    self.forgeting_rate * (self.pA[modality_idx] - self.pA_0[modality_idx]) +
-                                    self.pA_0[modality_idx] +
-                                    self.learning_rate * A_mm,  
-                                    self.pA[modality_idx]
-                                )                    
-                                del A_mm
+            if actual_t is None:
+                actual_t = getattr(self, "_current_time", 0)
+            self.last_learning = learn_shallow_categorical(
+                self,
+                int(actual_t),
+            )
+        return self.last_learning
 
-                    if self.learning_B:
-                        
-                        for t_i in range(self.learning_window):
-                            if t_i > 0:
-                                
-                                for factor_idx in range(self.num_factors):
-                                    action = int(self.action_posteriors_cache[factor_idx, t_i-1])
-                                    if factor_idx not in self.controlable_states:
-                                        continue
-                                    
-                                    state_before = self.posteriors_cache[t_i-1, factor_idx]
-                                    state_after = self.posteriors_cache[t_i, factor_idx]
-                                    joint_states = np.outer(state_after, state_before)
-                                    joint_states *= (self.B[factor_idx][:, :, action] > 0).astype("float")
-                                    
-                                    # Get index of column containing the highest value
-                                    max_col_idx = np.unravel_index(np.argmax(joint_states), joint_states.shape)[1]
-
-                                    # Create a mask for selecting only that column
-                                    col_mask = np.zeros_like(joint_states)
-                                    col_mask[:, max_col_idx] = joint_states[:, max_col_idx]
-                                    # Update only that column in self.pB
-                                    
-                                    #i = self.pB[factor_idx][:, :, action] > 0
-                                    i = col_mask > 0
-                                    self.pB[factor_idx][:, :, action] = np.where(
-                                        i,
-                                        self.forgeting_rate * (self.pB[factor_idx][:, :, action] - self.pB_0[factor_idx][:, :, action]) +
-                                        self.pB_0[factor_idx][:, :, action] +
-                                        self.learning_rate * col_mask,
-                                        self.pB[factor_idx][:, :, action]
-                                    )
-                                    del joint_states, state_before, state_after, i, col_mask
-
-                    if self.learning_D:
-                        if actual_t == 0:
-
-                            for factor_idx in range(self.num_factors):
-                                i = self.pD[factor_idx] > 0
-                                self.pD[factor_idx] = np.where(
-                                    i,
-                                    (self.pD[factor_idx] - self.pD_0[factor_idx]) 
-                                    + self.pD_0[factor_idx] 
-                                    + self.learning_rate * self.posteriors_cache[actual_t, factor_idx], 
-                                )                
-
-                                del i
-
-    
     def softmax(self, x, axis = 0, gamma=1.0):
         return numerical_softmax(x, axis=axis, gamma=gamma)
     

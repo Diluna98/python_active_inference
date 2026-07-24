@@ -205,6 +205,8 @@ def test_discrete_deep_agent_updates_policy_dependent_beliefs():
         agent.last_policy_inference.policy_posterior,
         agent.posterior_pi,
     )
+    selected_action = agent.select_action()
+    assert agent.action_history[0, 0] == selected_action[0]
 
 
 def test_deep_expected_free_energy_combines_policy_terms():

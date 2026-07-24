@@ -12,10 +12,17 @@ from .inference import (
     deep_expected_free_energy,
 )
 from .likelihoods import CategoricalLikelihood
+from .learning import (
+    CategoricalLearningResult,
+    categorical_observation_evidence,
+    categorical_transition_evidence,
+    update_dirichlet_parameters,
+)
 
 __all__ = [
     "ActiveInfAgent",
     "CategoricalLikelihood",
+    "CategoricalLearningResult",
     "DeepPolicyInferenceResult",
     "DeepStateInferenceResult",
     "DeepTemporalInference",
@@ -26,4 +33,7 @@ __all__ = [
     "ShallowInference",
     "ShallowPolicyInferenceResult",
     "ShallowStateInferenceResult",
+    "categorical_observation_evidence",
+    "categorical_transition_evidence",
+    "update_dirichlet_parameters",
 ]
