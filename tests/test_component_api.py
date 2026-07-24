@@ -156,6 +156,31 @@ def test_discrete_deep_agent_updates_policy_dependent_beliefs():
         assert np.isclose(posterior.sum(), 1.0)
         assert posterior[0] > posterior[1]
 
+    np.testing.assert_allclose(
+        np.asarray(agent.last_state_inference.free_energy, dtype=float),
+        np.array([-0.2945894368115574, -0.2945894368115575]),
+    )
+    np.testing.assert_allclose(
+        agent.policy_dep_posteriors[0, 0, 0],
+        np.array([0.9820932, 0.0179068]),
+        rtol=1e-7,
+        atol=1e-7,
+    )
+    np.testing.assert_allclose(
+        agent.policy_dep_posteriors[0, 1, 0],
+        np.array([0.77883179, 0.22116821]),
+        rtol=1e-7,
+        atol=1e-7,
+    )
+    np.testing.assert_allclose(
+        agent.policy_dep_posteriors[1, 1, 0],
+        np.array([0.22116821, 0.77883179]),
+        rtol=1e-7,
+        atol=1e-7,
+    )
+    assert agent.last_state_inference.iterations == (7, 7)
+    assert agent.last_state_inference.converged == (True, True)
+
     G, F = agent.infer_policies()
     assert G.shape == (2,)
     assert F.shape == (2,)

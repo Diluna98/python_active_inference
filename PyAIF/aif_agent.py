@@ -34,6 +34,7 @@ from PyAIF.inference.shallow import (
     infer_shallow_policies,
     infer_shallow_states,
 )
+from PyAIF.inference.deep_temporal import infer_deep_temporal_states
 
 EPS_VAL = 1e-16 # global constant for use in spm_log() function
 
@@ -956,94 +957,17 @@ class ActiveInfAgent:
             self.observations[t] = np.asarray(obs).copy()
         
         if self.deep_inference:
-            #implimentation of the MMP
-
-            #@NOTE: Policy_pruning functionality needs to be debugged.
-            #if self.policy_pruning:
-
-            self.model_evd = 0
-            self.accuracy_policy = []
-            self.complexity_policy = []
-            for policy_idx, policy in enumerate(self.policies):
-                depolarization = None
-                F = None
-                for nmp in range(self.number_of_msg_passing):  # Number of gradient descent iterations
-                    previous_F = copy.deepcopy(F)
-                    self.F_policy[policy_idx] = previous_F
-                    F = 0
-                    accuracy = 0
-                    complexity = 0
-                    for factor in range(self.num_factors):
-                        for tau in range(self.planning_from, self.planning_to):
-                            tau_ref = tau%self.temporal_horizon #reference time indexing for tau for this planning window
-                            third_msg = self.create_object_tensor('zeros', 1, last_dim=self.states_dim[factor])
-                            #previous_policy_dep_posteriors = copy.deepcopy(self.policy_dep_posteriors[policy_idx, tau, factor])
-                            if t%self.temporal_horizon == 0:       
-                                depolarization = self.log_stable(self.D[factor])
-                            else:
-                                depolarization = self.log_stable(self.policy_dep_posteriors[policy_idx, tau_ref, factor])
-                            if tau in self.observations:
-                                # Third message
-                                
-                                third_msg = self.expected_log_likelihood_einsum(self.observations[tau], factor, policy_idx, tau_ref) #here use the 'tau' to get the observation received at the actual time step.
-                            
-                            if tau_ref == 0: #at the begining of each planning windows (tau==0)
-                                # First message
-                                #first_msg = self.log_stable(self.D[factor])
-                                if t < self.temporal_horizon: #if the very first planning window
-                                    first_msg = self.log_stable(self.D[factor])
-                                else:
-                                    first_msg = self.log_stable(self.previous_qs_T[factor]) #get the latest belief from the previous planning window for this policy and factor. This is the belief at the end of the previous planning window which will be used as the prior for the first message in the current planning window.
-                                # Second message
-                                action_tau = policy[tau_ref, :]
-                                qs_future = self.policy_dep_posteriors[policy_idx, tau_ref+1, factor]
-                                second_msg = self.log_stable(self.transposed_B[factor][:,:,action_tau[factor]].dot(qs_future))
-                            
-                            elif tau_ref == self.temporal_horizon-1:
-                                # First message
-                                actions_tau_1 = policy[tau_ref-1, :]
-                                qs_prev = self.policy_dep_posteriors[policy_idx, tau_ref-1, factor]
-                                first_msg = self.log_stable(self.B[factor][:, :, actions_tau_1[factor]].dot(qs_prev))
-                                # Second message
-                                second_msg = np.zeros((self.D[factor]).shape)
-                            else:
-                                # First message
-                                actions_tau_1 = policy[tau_ref-1, :]
-                                qs_prev = self.policy_dep_posteriors[policy_idx, tau_ref-1, factor]
-                                first_msg = self.log_stable(self.B[factor][:, :, actions_tau_1[factor]].dot(qs_prev))
-                                # Second message
-                                action_tau = policy[tau_ref, :]
-                                qs_future = self.policy_dep_posteriors[policy_idx, tau_ref+1, factor]
-                                second_msg = self.log_stable(self.transposed_B[factor][:,:,action_tau[factor]].dot(qs_future))
-
-                            # Compute state prediction error
-                            state_pred_err = 0.5*(first_msg + second_msg) + third_msg - depolarization
-                            depolarization += state_pred_err/self.timeconst
-                            
-                
-                            #@NOTE equation of F in tbl 2 on page 19 of the paper and MATLAB line of code for this is different.
-                            # Following is the implimentation from the MATLAB.
-                            Fintermediate = (self.policy_dep_posteriors[policy_idx, tau_ref, factor]).dot(-self.log_stable(self.policy_dep_posteriors[policy_idx, tau_ref, factor]) + 0.5*(first_msg + second_msg) +third_msg)
-                            F += Fintermediate
-                            self.policy_dep_posteriors[policy_idx, tau_ref, factor] = self.softmax(np.array(depolarization))
-                            #self.vfe_ft[policy_idx, tau, nmp, t, factor] = Fintermediate
-
-                            #self.posterior_entropy += -np.sum(self.policy_dep_posteriors[policy_idx, tau, factor] * self.log_stable(self.policy_dep_posteriors[policy_idx, tau, factor]))
-                            #count += 1
-                            if t == tau:
-                                accuracy += np.mean(third_msg) #/self.states_dim[factor]#((self.policy_dep_posteriors[policy_idx, tau_ref, factor]).dot(third_msg))/self.states_dim[factor]
-                                complexity += ((self.policy_dep_posteriors[policy_idx, tau_ref, factor]).dot(-self.log_stable(self.policy_dep_posteriors[policy_idx, tau_ref, factor]) + 0.5*(first_msg + second_msg)))/self.states_dim[factor]
-                    #Early stopping condition to exit gradient descent if minimum VFE reached!
-                    if nmp > 5 and previous_F is not None:
-                        if abs(F) - abs(previous_F) <= np.exp(-8):
-                            #self.policy_dep_posteriors[policy_idx, tau, factor] = previous_policy_dep_posteriors
-                            self.F_policy[policy_idx] = previous_F
-                            break
-                self.accuracy_policy.append(accuracy)
-                self.complexity_policy.append(complexity)
-            #self.posterior_entropy = self.posterior_entropy / count
-            #self.model_evd = np.max(self.F_policy) / (np.prod(self.states_dim)*self.temporal_horizon)
-            #self.update_goal_plot(t, policy_idx=0)
+            inference = getattr(self, "inference", None)
+            convergence_tolerance = getattr(
+                inference,
+                "convergence_tolerance",
+                np.exp(-8),
+            )
+            self.last_state_inference = infer_deep_temporal_states(
+                self,
+                t,
+                convergence_tolerance=convergence_tolerance,
+            )
 
         else:
             if dF_tol is None:
