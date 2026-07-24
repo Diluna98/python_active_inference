@@ -25,7 +25,7 @@ from .learning import (
 )
 
 try:
-    __version__ = version("PyAIF")
+    __version__ = version("pyaif-toolkit")
 except PackageNotFoundError:
     __version__ = "0.1.0"
 
