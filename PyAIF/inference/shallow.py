@@ -6,6 +6,7 @@ from typing import Any, Optional, Sequence
 
 import numpy as np
 
+from PyAIF.inference.base import map_policies
 from PyAIF.numerics import log_stable_probability, softmax
 
 
@@ -154,14 +155,14 @@ def infer_shallow_policies(
     time_step: int,
     *,
     policy_precision: float = 240.0,
+    policy_workers: int = 1,
 ) -> ShallowPolicyInferenceResult:
     """Score one-step policies and update the agent's policy posterior."""
-    agent.risk = []
-    agent.ambiguity = []
-    agent.info_gain = []
 
-    for policy_index, policy in enumerate(agent.policies):
+    def evaluate_policy(policy_index: int):
+        policy = agent.policies[policy_index]
         information_gain = 0.0
+        reported_information_gain = None
         expected_states = agent.get_expected_states(policy[0])
 
         ambiguity = agent.calculate_policy_ambiguity(
@@ -174,9 +175,6 @@ def infer_shallow_policies(
             policy_index,
             expected_states,
         )
-        agent.ambiguity.append(ambiguity)
-        agent.risk.append(risk)
-
         if agent.learning_D:
             information_gain += agent.calculate_pD_info_gain(policy_index)
         if agent.learning_A:
@@ -186,7 +184,7 @@ def infer_shallow_policies(
                 expected_states,
             )
             information_gain += likelihood_information_gain
-            agent.info_gain.append(likelihood_information_gain)
+            reported_information_gain = likelihood_information_gain
         if agent.learning_B:
             information_gain += agent.calculate_pB_info_gain(
                 time_step,
@@ -194,9 +192,19 @@ def infer_shallow_policies(
                 expected_states,
             )
 
-        # Retained for compatibility; the legacy score currently disables it.
-        cost = agent._calculate_cost(policy_index)
-        agent.G_policy[policy_index] = -risk + ambiguity + information_gain - cost * 0
+        return (
+            float(risk),
+            float(ambiguity),
+            reported_information_gain,
+            float(-risk + ambiguity + information_gain),
+        )
+
+    results = map_policies(evaluate_policy, len(agent.policies), policy_workers)
+    agent.risk = [result[0] for result in results]
+    agent.ambiguity = [result[1] for result in results]
+    agent.info_gain = [result[2] for result in results if result[2] is not None]
+    for policy_index, result in enumerate(results):
+        agent.G_policy[policy_index] = result[3]
 
     agent.posterior_pi = softmax(
         np.float64(log_stable_probability(agent.E) + policy_precision * agent.G_policy),
@@ -217,12 +225,15 @@ class ShallowInference:
     message_passing_iterations: int = 16
     convergence_tolerance: float = 1e-4
     horizon: int = 1
+    policy_workers: int = 1
 
     def __post_init__(self) -> None:
         if self.message_passing_iterations < 1:
             raise ValueError("message_passing_iterations must be positive.")
         if self.convergence_tolerance <= 0:
             raise ValueError("convergence_tolerance must be positive.")
+        if self.policy_workers < 1:
+            raise ValueError("policy_workers must be positive.")
 
     def infer_states(
         self,
@@ -253,4 +264,5 @@ class ShallowInference:
             agent,
             time_step,
             policy_precision=policy_precision,
+            policy_workers=self.policy_workers,
         )

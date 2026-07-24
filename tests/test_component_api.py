@@ -9,6 +9,7 @@ from PyAIF import (
     ShallowInference,
     deep_expected_free_energy,
 )
+from PyAIF.inference.deep_temporal import _infer_deep_policy_states
 
 
 def object_array(*arrays):
@@ -262,3 +263,151 @@ def test_deep_expected_free_energy_combines_policy_terms():
         ),
         -0.9190805547355392,
     )
+
+
+@pytest.mark.parametrize(
+    "inference",
+    [
+        ShallowInference(policy_workers=2),
+        DeepTemporalInference(horizon=2, policy_workers=2),
+    ],
+)
+def test_parallel_policy_execution_matches_serial(inference):
+    serial_inference = (
+        ShallowInference()
+        if inference.horizon == 1
+        else DeepTemporalInference(horizon=2)
+    )
+    serial_model, serial_likelihood = make_components(serial_inference)
+    parallel_model, parallel_likelihood = make_components(inference)
+    serial_agent = ActiveInfAgent(
+        model=serial_model,
+        likelihood=serial_likelihood,
+        inference=serial_inference,
+        action_selection="deterministic",
+    )
+    parallel_agent = ActiveInfAgent(
+        model=parallel_model,
+        likelihood=parallel_likelihood,
+        inference=inference,
+        action_selection="deterministic",
+    )
+
+    for agent in (serial_agent, parallel_agent):
+        agent.reset()
+        agent.observe([0])
+        agent.infer_states()
+        agent.infer_policies()
+
+    np.testing.assert_allclose(
+        np.asarray(parallel_agent.G_policy, dtype=float),
+        np.asarray(serial_agent.G_policy, dtype=float),
+    )
+    np.testing.assert_allclose(
+        parallel_agent.posterior_pi,
+        serial_agent.posterior_pi,
+    )
+    if inference.horizon > 1:
+        np.testing.assert_allclose(
+            np.asarray(parallel_agent.F_policy, dtype=float),
+            np.asarray(serial_agent.F_policy, dtype=float),
+        )
+        for policy_index in range(serial_agent.num_policies):
+            for time_step in range(serial_agent.temporal_horizon):
+                for factor in range(serial_agent.num_factors):
+                    np.testing.assert_allclose(
+                        parallel_agent.policy_dep_posteriors[
+                            policy_index,
+                            time_step,
+                            factor,
+                        ],
+                        serial_agent.policy_dep_posteriors[
+                            policy_index,
+                            time_step,
+                            factor,
+                        ],
+                    )
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        lambda: ShallowInference(policy_workers=0),
+        lambda: DeepTemporalInference(horizon=2, policy_workers=0),
+    ],
+)
+def test_policy_workers_must_be_positive(factory):
+    with pytest.raises(ValueError, match="policy_workers must be positive"):
+        factory()
+
+
+def test_batched_deep_inference_matches_policy_reference():
+    inference = DeepTemporalInference(
+        horizon=3,
+        message_passing_iterations=8,
+    )
+    model, likelihood = make_components(inference)
+    agent = ActiveInfAgent(
+        model=model,
+        likelihood=likelihood,
+        inference=inference,
+        action_selection="deterministic",
+    )
+    agent.reset()
+    agent.observe([0])
+    references = [
+        _infer_deep_policy_states(
+            agent,
+            policy_index,
+            0,
+            inference.convergence_tolerance,
+        )
+        for policy_index in range(agent.num_policies)
+    ]
+
+    agent.infer_states()
+
+    assert agent.num_policies == 4
+    for policy_index, reference in enumerate(references):
+        np.testing.assert_allclose(
+            np.asarray(
+                agent.policy_dep_posteriors[policy_index].tolist(),
+                dtype=float,
+            ),
+            np.asarray(reference[0].tolist(), dtype=float),
+        )
+        assert np.isclose(agent.F_policy[policy_index], reference[1])
+        assert agent.last_state_inference.iterations[policy_index] == reference[4]
+        assert agent.last_state_inference.converged[policy_index] == reference[5]
+
+
+def test_shallow_policy_scoring_supports_more_policies_than_states():
+    inference = ShallowInference(policy_workers=2)
+    transitions = object_array(
+        np.repeat(np.eye(2)[:, :, None], 2, axis=2),
+        np.repeat(np.eye(2)[:, :, None], 2, axis=2),
+    )
+    model = GenerativeModel(
+        B=transitions,
+        D=object_array(np.ones(2), np.ones(2)),
+        controls_dim=[2, 2],
+        controllable_factors=[0, 1],
+    )
+    likelihood = CategoricalLikelihood(
+        A=object_array(np.full((2, 2, 2), 0.5)),
+        preferences=object_array(np.zeros(2)),
+        modality_dependencies=[[0, 1]],
+    )
+    agent = ActiveInfAgent(
+        model=model,
+        likelihood=likelihood,
+        inference=inference,
+    )
+    agent.reset()
+    agent.observe([0])
+    agent.infer_states()
+    expected_free_energy, _ = agent.infer_policies()
+
+    assert agent.num_policies == 4
+    assert len(expected_free_energy) == 4
+    assert np.all(np.isfinite(np.asarray(expected_free_energy, dtype=float)))

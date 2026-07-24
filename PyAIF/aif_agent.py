@@ -985,6 +985,7 @@ class ActiveInfAgent:
                 self,
                 t,
                 convergence_tolerance=convergence_tolerance,
+                policy_workers=getattr(inference, "policy_workers", 1),
             )
 
         else:
@@ -1266,12 +1267,22 @@ class ActiveInfAgent:
                 self,
                 trial,
                 t,
+                policy_workers=getattr(
+                    getattr(self, "inference", None),
+                    "policy_workers",
+                    1,
+                ),
             )
         else:
             self.last_policy_inference = infer_shallow_policies(
                 self,
                 t,
                 policy_precision=gamma_const,
+                policy_workers=getattr(
+                    getattr(self, "inference", None),
+                    "policy_workers",
+                    1,
+                ),
             )
 
         return (

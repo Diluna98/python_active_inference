@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Configurable `policy_workers` for bounded parallel policy evaluation.
+
+### Changed
+
+- Deep temporal state inference, risk, and ambiguity evaluation now batch
+  independent policies with NumPy.
+- Shallow policy scoring no longer evaluates a disabled cost term, allowing
+  policy sets larger than the number of hidden states.
+
 ## 0.1.0 - 2026-07-24
 
 ### Added

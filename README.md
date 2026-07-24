@@ -116,6 +116,30 @@ Use `DeepTemporalInference(horizon=...)` for policy-dependent beliefs over
 multiple time steps. Deep preferences have shape
 `(number_of_outcomes, horizon)`.
 
+## Performance and parallel policies
+
+Deep temporal inference automatically batches independent policies into NumPy
+tensor operations. This reduces Python-loop overhead while preserving
+policy-by-policy inference results.
+
+Policy evaluation can also use bounded worker threads:
+
+```python
+inference = DeepTemporalInference(
+    horizon=3,
+    message_passing_iterations=16,
+    policy_workers=4,
+)
+```
+
+`policy_workers=1` is the default and is usually fastest for small categorical
+models because batched NumPy operations already process all policies
+efficiently. Values greater than one split policy batches across threads
+without copying the agent's arrays. Benchmark representative workloads before
+increasing the worker count; threading is most useful when each policy
+contains sufficiently large tensor contractions. `ShallowInference` accepts
+the same `policy_workers` option for concurrent policy scoring.
+
 ## Agent lifecycle
 
 The supported component-based lifecycle is:
