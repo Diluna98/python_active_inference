@@ -9,6 +9,7 @@
 - Reusable shallow and deep categorical inference strategies.
 - Reusable categorical parameter learning for `A`, `B`, `C`, `D`, and `E`.
 - Numerical and end-to-end learning-example regression tests.
+- Reproducible VFE-surprise animation for the uncertainty-learning example.
 - Wheel validation, continuous integration, and guarded release automation.
 - BSD-3-Clause licensing for the packaged software.
 

@@ -86,6 +86,13 @@ jobs:
               )
               for name in source_names
           )
+          assert any(
+              name.endswith(
+                  "examples/learning_under_uncertainty/"
+                  "vfe_transition.gif"
+              )
+              for name in source_names
+          )
           PY
       - uses: actions/upload-artifact@v4
         with:

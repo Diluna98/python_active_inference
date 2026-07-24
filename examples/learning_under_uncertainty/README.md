@@ -75,3 +75,19 @@ required.
 # Figure
 
 ![Plot](Figure_1.png)
+
+# VFE Animation
+
+![Animated VFE response to the workload transition](vfe_transition.gif)
+
+The animation shows the absolute deviation of best-policy VFE from an adaptive
+baseline. This VFE-surprise measure makes the initial learning reduction,
+transition response, and subsequent adaptation visible without presenting the
+cumulative policy evidence as a stationary quantity.
+
+Recreate it from a saved epistemic simulation:
+
+```bash
+python make_vfe_animation.py epistemic_simulation_results_1.npy \
+  --output vfe_transition.gif
+```
