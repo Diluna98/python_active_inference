@@ -1,33 +1,39 @@
-import subprocess
-import numpy as np
-import glob
 import os
+import subprocess
+import sys
+
 import numpy as np
 import matplotlib.pyplot as plt
 
 """
-This is a simple script to compare the sucess rates of epistemic only uncertainity model
-(epistemic_uncertainity.py) and fully uncertainty model (aleotric_uncertainity.py).
+This script compares the success rates of the epistemic-only uncertainty model
+(`epistemic_uncertainty.py`) and the full-uncertainty model
+(`aleatoric_uncertainty.py`).
 
 One can simply run the file 'Python main.py' to reproduce the results presented in our pre-print.
 
 """
 
 def run_simulation(script_path):
-    subprocess.run(["python", script_path], check=True)
-
-import os
+    subprocess.run([sys.executable, script_path], check=True)
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
+output_dir = os.environ.get("PYAIF_EXAMPLE_OUTPUT_DIR", script_dir)
 
-run_simulation(os.path.join(script_dir, "epistemic_uncertainity.py"))
-print("running epistemic only uncertainity model............")
-run_simulation(os.path.join(script_dir, "aleotric_uncertainity.py"))
-print("now running fully uncertainity model............")
+run_simulation(os.path.join(script_dir, "epistemic_uncertainty.py"))
+print("running epistemic-only uncertainty model............")
+run_simulation(os.path.join(script_dir, "aleatoric_uncertainty.py"))
+print("now running full-uncertainty model............")
 
 # Load dictionaries
-epi_data = np.load(os.path.join(script_dir,"epistemic_simulation_results_1.npy"), allow_pickle=True).item()
-aleo_data = np.load(os.path.join(script_dir,"aleotric_simulation_results_1.npy"), allow_pickle=True).item()
+epi_data = np.load(
+    os.path.join(output_dir, "epistemic_simulation_results_1.npy"),
+    allow_pickle=True,
+).item()
+aleo_data = np.load(
+    os.path.join(output_dir, "aleatoric_simulation_results_1.npy"),
+    allow_pickle=True,
+).item()
 
 epi = epi_data["decisions"][:, :3]
 aleo = aleo_data["decisions"][:, :3]

@@ -138,15 +138,15 @@ See [Model shapes](docs/model-shapes.md) and
 
 ## Examples
 
-- `examples/handover_task_single_agent/`: deep temporal handover agent.
-- `examples/autonomus_picknplace/`: autonomous pick-and-place agent.
-- `examples/learning_under_uncertinity/`: parameter-learning experiments.
+- `examples/quickstart_discrete.py`: minimal categorical agent.
+- `examples/learning_under_uncertainty/`: deep temporal parameter-learning
+  experiments under epistemic and aleatoric uncertainty.
 
 Model-selection and bounded-rationality experiments are maintained separately
 from the reusable PyAIF package.
 
-The automated regression suite covers the reusable component API and the
-handover model/policy fixture.
+The automated regression suite covers the reusable component API and executes
+one trial of each parameter-learning experiment.
 
 Run the minimal component example with:
 

@@ -129,15 +129,12 @@ def learn_deep_categorical(agent: Any) -> CategoricalLearningResult:
         final_time = agent.temporal_horizon - 1
         for factor in range(agent.num_factors):
             evidence = agent.bayesian_mod_avg[final_time, factor]
-            forgetting_rate = (
-                0.0 if factor in agent.controlable_states else agent.forgeting_rate
-            )
             agent.pD[factor] = update_dirichlet_parameters(
                 agent.pD[factor],
                 agent.pD_0[factor],
                 evidence,
                 learning_rate=agent.learning_rate,
-                forgetting_rate=forgetting_rate,
+                forgetting_rate=1.0,
                 support=evidence >= 0.01,
             )
         agent.D = agent._normalize_colums(agent.pD)

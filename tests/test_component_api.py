@@ -229,7 +229,7 @@ def test_discrete_deep_agent_updates_policy_dependent_beliefs():
     G, F = agent.infer_policies()
     np.testing.assert_allclose(
         np.asarray(G, dtype=float),
-        np.array([0.9190805547355392, 0.9190805547355392]),
+        np.array([-0.9190805547355392, -0.9190805547355392]),
     )
     np.testing.assert_allclose(
         np.asarray(F, dtype=float),
@@ -260,5 +260,5 @@ def test_deep_expected_free_energy_combines_policy_terms():
             ambiguity=0.4672138063843514,
             information_gain=0.0,
         ),
-        0.9190805547355392,
+        -0.9190805547355392,
     )

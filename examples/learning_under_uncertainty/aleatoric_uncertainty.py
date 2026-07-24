@@ -1,10 +1,19 @@
+"""Run the parameter-learning experiment with aleatoric uncertainty."""
+
 import numpy as np
-from PyAIF import utils, ActiveInfAgent
+from PyAIF import (
+    ActiveInfAgent,
+    CategoricalLikelihood,
+    DeepTemporalInference,
+    GenerativeModel,
+    utils,
+)
 import copy
 import os
 from collections import deque
-import json
-import time
+
+if seed := os.environ.get("PYAIF_EXAMPLE_SEED"):
+    np.random.seed(int(seed))
 
 num_states_GP = [3, 2]
 num_obs_GP = [2, 2, 4]
@@ -17,29 +26,29 @@ def reset_GP():
     B_GP = utils.uniform_B_matrix(num_states_GP, num_controls_GP) # create transition likelihood (B matrix)
     D_GP = utils.uniform_D_matrix(num_states_GP)
 
-    D_GP[0] = np.array([1, 0, 0])
+    D_GP[0] = np.array([1, 0])
     D_GP[1] = np.array([0, 1]) #trust #no trust
 
     #__HumanLocation_____#
 
     for i in range(num_states_GP[1]):
 
-            A_GP[0][:,:,i] = np.array([[1, 0, 1], #Cargo_workplace
-                                        [0, 1, 0]]) #Handlebars_workplace
+            A_GP[0][:,:,i] = np.array([[0.9, 0.1, 0.9], #Cargo_workplace
+                                       [0.1, 0.9, 0.1]]) #Handlebars_workplace
         
     #__HumanHandLocation_____#
 
     for i in range(num_states_GP[1]):
 
-            A_GP[1][:,:,i] = np.array([[0, 0, 1], #workplace
-                                        [1, 1, 0]]) #stretchout
+            A_GP[1][:,:,i] = np.array([[0, 0, 0.9], #workplace
+                                       [1, 1, 0.1]]) #stretchout
         
     #__HumanVoiceCommand_____#
 
-    A_GP[2][:,:,1] = np.array([[1, 0, 0], #cargo
-                                [0, 1, 0], #handlebars
-                                [0, 0, 1], #wait
-                                [0, 0, 0]]) #nothing
+    A_GP[2][:,:,1] = np.array([[0.8, 0.2, 0], #cargo
+                               [0.2, 0.8, 0], #handlebars
+                               [0, 0, 0.8], #wait
+                               [0, 0, 0.2]]) #nothing
 
     A_GP[2][:,:,0] = np.array([[0, 0, 0], #cargo
                                 [0, 0, 0], #handlebars
@@ -64,7 +73,7 @@ def reset_GP():
 
 
 def update_D_GP(trust_param):
-    D_GP[0] = np.array([1, 0, 0])
+    D_GP[0] = np.array([1, 0])
     D_GP[1] = np.array([trust_param, 1-trust_param]) #trust #no trust
 
 def update_A_GP(trial):
@@ -73,45 +82,20 @@ def update_A_GP(trial):
 
         for i in range(num_states_GP[1]):
 
-                A_GP[0][:,:,i] = np.array([[1, 0, 0], #Cargo_workplace
-                                            [0, 1, 1]]) #Handlebars_workplace
+                A_GP[0][:,:,i] = np.array([[0.9, 0.1, 0.1], #Cargo_workplace
+                                            [0.1, 0.9, 0.9]]) #Handlebars_workplace
 
 def update_B_GP(trial, trust_param):
 
-    B_GP[1][:,:,0] = np.array([[trust_param, trust_param],
-                            [1-trust_param, 1-trust_param]])
+    trust_trans_prob = max(0.0, trust_param - 0.2)
+
+    B_GP[1][:,:,0] = np.array([[trust_trans_prob, trust_trans_prob],
+                            [1-trust_trans_prob, 1-trust_trans_prob]])
 
     if trial > 99:
         B_GP[0][:,:,2] = np.array([[1, 0, 0.00],
                                    [0, 1, 0.45],
                                    [0, 0, 0.55]])
-"""
-def update_params(trust_param, command_param, true_state, action, obs):
-    gain_rate = 0.07
-    gain_rate_2 = 0.2
-    loss_rate = 0.15
-    loss_rate_2 = 0.15
-    expected_action = int(copy.deepcopy(true_state))
-    #print(f"observation is {obs}, expected action: {expected_action}, action: {action}")
-    if obs[2] == 3:
-        if action == expected_action:
-            trust_param += gain_rate_2 * (1 - trust_param) 
-        else:
-            trust_param -= loss_rate_2 * trust_param
-    else:
-        if action == expected_action:
-            trust_param += gain_rate * (1 - trust_param)
-        else:
-            trust_param -= loss_rate * trust_param
-
-    trust_param = max(0, min(1, trust_param))
-
-    steepness = 10
-    midpoint = 0.6
-    command_param = 1 / (1 + np.exp(steepness * (trust_param - midpoint)))
-
-    return trust_param, command_param
-"""
 
 def update_params(trust_param, command_param, true_state, action, obs, decision_history=None, window_size=10):
     """
@@ -154,6 +138,7 @@ def update_params(trust_param, command_param, true_state, action, obs, decision_
     #print(f"obs: {obs}, expected: {expected_action}, action: {action}, trust: {trust_param:.3f}")
     return trust_param, command_param, correct
 
+
 def get_true_state(trial, t, action_idx=None):
     for factor_idx in range(len(D_GP)):
         if t == 0:
@@ -180,7 +165,6 @@ num_states = [3, 2]
 num_obs = [2, 2, 4]
 num_controls = [3, 1]
 control_fac_idx = [0]
-Temp_horizon = 4
 
 def reset_Gmodel():
     global A, B, D, C
@@ -255,27 +239,25 @@ def reset_Gmodel():
         [0.0, 0.0, 0.0, 0.0],
         [1.0, 1.0, 1.0, 1.0]
     ])
-    A = copy.deepcopy(A_GP)
-    B = copy.deepcopy(B_GP)
-    D = copy.deepcopy(D_GP)
 
 
 
 # Create the directory if it doesn't exist
-# Directory of the current file
-save_dir = os.path.dirname(os.path.abspath(__file__))
+save_dir = os.environ.get(
+    "PYAIF_EXAMPLE_OUTPUT_DIR",
+    os.path.dirname(os.path.abspath(__file__)),
+)
 os.makedirs(save_dir, exist_ok=True)
-
 
 # Number of simulation runs
 NUM_SIMULATIONS = 1
 
 for sim_id in range(1, NUM_SIMULATIONS + 1):
-
     print(f"Running simulation {sim_id}...")
 
-    TRIALS = 300
+    TRIALS = int(os.environ.get("PYAIF_EXAMPLE_TRIALS", "300"))
     MODELS = 1
+    Temp_horizon = 4
     ini_trust_param = 0
     ini_command_param = 1
     trust_param = ini_trust_param
@@ -283,23 +265,37 @@ for sim_id in range(1, NUM_SIMULATIONS + 1):
 
     reset_GP()
     reset_Gmodel()
-    ainf_agent = ActiveInfAgent(A=A, B=B, states_dim=num_states, obs_dim=num_obs, controls_dim=num_controls,
-                                controlable_states=control_fac_idx, trial_length=Temp_horizon,
-                                number_of_msg_passing=100, trials=TRIALS, D=D, C=C,
-                                policies=False, policy_pruning=False, learning_A=True, learning_D=True, learning_B=True)
+    model = GenerativeModel(
+        B=B,
+        D=D,
+        controls_dim=num_controls,
+        controllable_factors=control_fac_idx,
+    )
+    likelihood = CategoricalLikelihood(A=A, preferences=C)
+    inference = DeepTemporalInference(
+        horizon=Temp_horizon,
+        message_passing_iterations=100,
+    )
+    ainf_agent = ActiveInfAgent(
+        model=model,
+        likelihood=likelihood,
+        inference=inference,
+        trials=TRIALS,
+        policy_pruning=False,
+        learning_A=True,
+        learning_B=True,
+        learning_D=True,
+        learning_rate=0.5,
+        forgeting_rate=0.5,
+    )
 
     true_states = np.zeros([TRIALS, Temp_horizon, 2])
     outcomes = np.zeros([TRIALS, Temp_horizon, 3])
     trust = np.zeros([TRIALS, Temp_horizon])
     voice = np.zeros([TRIALS, Temp_horizon])
-    decisions = np.zeros([TRIALS, Temp_horizon])
     selected_actions = np.zeros([TRIALS, Temp_horizon - 1])
-    vfe_fa = np.empty(TRIALS, dtype=object)
-    vfe_fb = np.empty(TRIALS, dtype=object)
-    vfe_fd = np.empty(TRIALS, dtype=object)
-    vfe_fe = np.empty(TRIALS, dtype=object)
-    lr_rates = np.empty(TRIALS, dtype=object)
-    fr_rates = np.empty(TRIALS, dtype=object)
+    decisions = np.zeros([TRIALS, Temp_horizon])
+    learning_updates = np.zeros((TRIALS, 5), dtype=bool)
     D_norm_trials = np.empty(TRIALS, dtype=object)
     B_norm_trials = np.empty(TRIALS, dtype=object)
     A_norm_trials = np.empty(TRIALS, dtype=object)
@@ -319,8 +315,10 @@ for sim_id in range(1, NUM_SIMULATIONS + 1):
             true_states[trial, 0, :] = copy.deepcopy(state[trial - 1, 3, :])
 
         ainf_agent.store_parameters()
-        D_norm, B_norm, A_norm = ainf_agent.normalize_columns()
-        ainf_agent.initialize_variables()
+        ainf_agent.reset(trial=trial)
+        D_norm = copy.deepcopy(ainf_agent.D)
+        B_norm = copy.deepcopy(ainf_agent.B)
+        A_norm = copy.deepcopy(ainf_agent.A)
         D_norm_trials[trial] = D_norm
         B_norm_trials[trial] = B_norm
         A_norm_trials[trial] = A_norm
@@ -332,11 +330,11 @@ for sim_id in range(1, NUM_SIMULATIONS + 1):
                 state = get_true_state(trial, t, executable_actions)
 
             obs = get_obs(trial, t, state)
-            ainf_agent.observations[trial, t, :] = np.array(obs)
-            ainf_agent.infer_states(trial, t)
-            G_policies, F_policies = ainf_agent.infer_policies(trial, t)
-            mod_averages = ainf_agent.perform_modal_average(trial, t)
-            chosen_action, _ = ainf_agent.choose_action(trial, t)
+            ainf_agent.observe(obs, time_step=t)
+            ainf_agent.infer_states()
+            G_policies, F_policies = ainf_agent.infer_policies()
+            mod_averages = ainf_agent.perform_modal_average()
+            chosen_action = ainf_agent.select_action()
 
             if chosen_action is not None:
                 executable_actions = chosen_action[0]
@@ -351,13 +349,14 @@ for sim_id in range(1, NUM_SIMULATIONS + 1):
             trust[trial, t] = trust_param
             voice[trial, t] = command_param
 
-        fa, fb, fd, fe, lr, fr = ainf_agent.perform_learning(trial)
-        vfe_fa[trial] = copy.deepcopy(fa)
-        vfe_fb[trial] = copy.deepcopy(fb)
-        vfe_fd[trial] = copy.deepcopy(fd)
-        vfe_fe[trial] = copy.deepcopy(fe)
-        lr_rates[trial] = copy.deepcopy(lr)
-        fr_rates[trial] = copy.deepcopy(fr)
+        learning_result = ainf_agent.learn()
+        learning_updates[trial] = [
+            learning_result.likelihood,
+            learning_result.transition,
+            learning_result.initial_state,
+            learning_result.habit,
+            learning_result.preference,
+        ]
         G_policies_trials[trial] = copy.deepcopy(G_policies)
         F_policies_trials[trial] = copy.deepcopy(F_policies)
         #B_infog_policies_trials[trial] = copy.deepcopy(B_infog_policies)
@@ -369,21 +368,25 @@ for sim_id in range(1, NUM_SIMULATIONS + 1):
         "voice": voice,
         "selected_actions": selected_actions,
         "decisions": decisions,
-        "vfe_fa": vfe_fa,
-        "vfe_fb": vfe_fb,
-        "vfe_fd": vfe_fd,
-        "vfe_fe": vfe_fe,
-        "lr_rates": lr_rates,
-        "fr_rates": fr_rates,
+        "learning_updates": learning_updates,
+        "learning_update_labels": (
+            "likelihood",
+            "transition",
+            "initial_state",
+            "habit",
+            "preference",
+        ),
         "D_norm": D_norm_trials,
         "B_norm": B_norm_trials,
         "A_norm": A_norm_trials,
         "G_policies": G_policies_trials,
         "F_policies": F_policies_trials,
-        #"B_infog_policies": B_infog_policies_trials,
         "model_averages": mod_averages
     }
 
-    save_path = os.path.join(save_dir, f"epistemic_simulation_results_{sim_id}.npy")
+    save_path = os.path.join(
+        save_dir,
+        f"aleatoric_simulation_results_{sim_id}.npy",
+    )
     np.save(save_path, data)
     print(f"Simulation {sim_id} saved to {save_path}")

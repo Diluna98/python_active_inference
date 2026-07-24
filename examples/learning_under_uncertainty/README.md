@@ -39,13 +39,17 @@ Observations are conditionally independent across modalities. For example the pr
 
 # Simulation Files
 
-### aleotric_uncertainity.py
+### aleatoric_uncertainty.py
 
-Simulates the active inference agent in an environment with persistent epistemic uncertainty and aleotric uncertainty. The agent must operate under unknown conditions that affect both sensing and outcomes.
+Simulates the active inference agent in an environment with persistent
+epistemic and aleatoric uncertainty. The agent must operate under unknown
+conditions that affect both sensing and outcomes.
 
-### epistemic_uncertainity.py
+### epistemic_uncertainty.py
 
-Simulates the agent in an environment with persistent epistemic uncertainty only. This serves as a baseline to study the influence of aleotric uncertainty.
+Simulates the agent in an environment with persistent epistemic uncertainty
+only. This serves as a baseline for studying the influence of aleatoric
+uncertainty.
 
 ### main.py
 
@@ -53,8 +57,20 @@ Runs a single simulation for each setting, compares the results and plots succes
 
 # Output
 
-Each simulation produces a dictionary of results including true states, observations, trust values, selected actions, decisions, variational free energy terms and several diagnostic variables. Results are saved as numpy files for later analysis.
-Success rates measured as the proportion of task consistent actions. The fully uncertain model reached approximately 79 percent success and the epistemic only model reached 86 percent. The small difference indicates that the method remains stable under full uncertainty.
+Each simulation produces a dictionary of results including true states,
+observations, trust values, selected actions, decisions, normalized model
+parameters, policy scores, and a record of which parameter families were
+updated. Results are saved as NumPy files for later analysis.
+Success is measured as the proportion of task-consistent actions. Reference
+runs from the original experiment produced approximately 86 percent success
+for the epistemic-only model and 79 percent for the full-uncertainty model.
+Exact rates vary because the environment and action selection are stochastic;
+results should be aggregated across several seeds for scientific comparisons.
+
+The default experiment runs 300 trials. Set `PYAIF_EXAMPLE_TRIALS` to run a
+shorter smoke simulation and `PYAIF_EXAMPLE_OUTPUT_DIR` to select the result
+directory. Set `PYAIF_EXAMPLE_SEED` when a reproducible stochastic run is
+required.
 
 # Figure
 
