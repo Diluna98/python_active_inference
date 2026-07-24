@@ -1,6 +1,10 @@
 from .aif_agent import ActiveInfAgent
 from .generative_model import GenerativeModel
-from .inference import DeepTemporalInference, ShallowInference
+from .inference import (
+    DeepTemporalInference,
+    ShallowInference,
+    ShallowStateInferenceResult,
+)
 from .likelihoods import CategoricalLikelihood
 
 __all__ = [
@@ -9,4 +13,5 @@ __all__ = [
     "DeepTemporalInference",
     "GenerativeModel",
     "ShallowInference",
+    "ShallowStateInferenceResult",
 ]

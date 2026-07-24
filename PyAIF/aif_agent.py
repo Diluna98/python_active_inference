@@ -30,6 +30,7 @@ from PyAIF.numerics import (
     transpose_transition,
     wnorm,
 )
+from PyAIF.inference.shallow import infer_shallow_states
 
 EPS_VAL = 1e-16 # global constant for use in spm_log() function
 
@@ -941,7 +942,7 @@ class ActiveInfAgent:
         plt.draw()
         plt.pause(0.01)
     
-    def infer_states(self, trial=None, t=None, res_idx=None, obs=None, dF_tol=1e-4):
+    def infer_states(self, trial=None, t=None, res_idx=None, obs=None, dF_tol=None):
         if trial is None:
             trial = getattr(self, "_current_trial", 0)
         if t is None:
@@ -1042,206 +1043,20 @@ class ActiveInfAgent:
             #self.update_goal_plot(t, policy_idx=0)
 
         else:
-                self.observations_cache[t % self.learning_window] = copy.deepcopy(obs)
-
-                # Fixed prior for this timestep
-                fixed_prior = []
-
-                for factor in range(self.num_factors):
-
-                    if t > 0:
-                        fixed_prior.append(
-                            self.posteriors[factor].copy()
-                        )
-                    else:
-                        fixed_prior.append(
-                            self.D[factor].copy()
-                        )
-
-                # Initial posterior estimate
-                qs_current = [
-                    q.copy() for q in fixed_prior
-                ]
-
-                curr_iter = 0
-                previous_vfe = None
-                dF = np.inf
-
-                while (
-                    curr_iter < self.num_iterations
-                    and dF >= dF_tol
-                ):
-
-                    base_qs = [
-                        q.copy() for q in qs_current
-                    ]
-
-                    sweep_results = []
-
-                    factor_orders = [
-                        range(self.num_factors),
-                        range(self.num_factors - 1, -1, -1)
-                    ]
-
-                    for order in factor_orders:
-
-                        qs_temp = [
-                            q.copy() for q in base_qs
-                        ]
-
-                        for factor in order:
-
-                            # Ensure likelihood computation
-                            # sees current beliefs
-                            self.posteriors = qs_temp
-
-                            # Fixed / observed factor
-                            if res_idx is not None and factor == 0:
-
-                                qs_temp[factor] = np.zeros_like(
-                                    qs_temp[factor]
-                                )
-
-                                qs_temp[factor][res_idx] = 1.0
-
-                                continue
-
-                            log_likelihoods = (
-                                self.expected_log_likelihood_einsum(
-                                    obs,
-                                    factor
-                                )
-                            )
-
-                            log_prior = self.log_stable(
-                                fixed_prior[factor]
-                            )
-
-                            weighted = (
-                                log_prior +
-                                log_likelihoods
-                            )
-
-                            weighted -= np.max(
-                                weighted
-                            )
-
-                            qs_temp[factor] = self.softmax(
-                                weighted
-                            )
-
-                            qs_temp[factor] = np.clip(
-                                qs_temp[factor],
-                                EPS_VAL,
-                                1.0
-                            )
-
-                            qs_temp[factor] /= (
-                                qs_temp[factor].sum()
-                            )
-
-                        sweep_results.append(
-                            [q.copy() for q in qs_temp]
-                        )
-
-                    # Average forward and backward sweeps
-                    qs_new = []
-
-                    for factor in range(
-                        self.num_factors
-                    ):
-
-                        q = (
-                            0.5 *
-                            (
-                                sweep_results[0][factor] +
-                                sweep_results[1][factor]
-                            )
-                        )
-
-                        q = np.clip(
-                            q,
-                            EPS_VAL,
-                            1.0
-                        )
-
-                        q /= q.sum()
-
-                        qs_new.append(q)
-
-                    # Compute variational free energy
-                    vfe = 0.0
-
-                    self.posteriors = qs_new
-
-                    for factor in range(
-                        self.num_factors
-                    ):
-
-                        q = np.clip(
-                            qs_new[factor],
-                            EPS_VAL,
-                            1.0
-                        )
-
-                        q /= q.sum()
-
-                        prior = np.clip(
-                            fixed_prior[factor],
-                            EPS_VAL,
-                            1.0
-                        )
-
-                        prior /= prior.sum()
-
-                        log_q = self.log_stable(q)
-
-                        log_prior = self.log_stable(
-                            prior
-                        )
-
-                        log_likelihoods = (
-                            self.expected_log_likelihood_einsum(
-                                obs,
-                                factor
-                            )
-                        )
-
-                        vfe += np.dot(
-                            q,
-                            log_q - log_prior
-                        )
-
-                        vfe -= np.dot(
-                            q,
-                            log_likelihoods
-                        )
-
-                    if previous_vfe is not None:
-
-                        dF = abs(
-                            vfe - previous_vfe
-                        )
-
-                    previous_vfe = vfe
-
-                    qs_current = [
-                        q.copy() for q in qs_new
-                    ]
-
-                    curr_iter += 1
-
-                self.posteriors = [
-                    q.copy() for q in qs_current
-                ]
-
-                self.posteriors_cache[
-                    t % self.learning_window
-                ] = copy.deepcopy(
-                    self.posteriors
+            if dF_tol is None:
+                inference = getattr(self, "inference", None)
+                dF_tol = getattr(
+                    inference,
+                    "convergence_tolerance",
+                    1e-4,
                 )
-                #print(self.posteriors)
-                #print(f"context: {np.argmax(self.posteriors[1])}, context_confidence: {np.max(self.posteriors[1])}")
+            self.last_state_inference = infer_shallow_states(
+                self,
+                obs,
+                t,
+                fixed_factor_index=res_idx,
+                convergence_tolerance=dF_tol,
+            )
 
 
 

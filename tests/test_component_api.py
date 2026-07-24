@@ -95,7 +95,20 @@ def test_discrete_shallow_agent_updates_beliefs_and_selects_action():
     agent.infer_states()
 
     assert np.isclose(agent.posteriors[0].sum(), 1.0)
-    assert agent.posteriors[0][0] > agent.posteriors[0][1]
+    np.testing.assert_allclose(
+        agent.posteriors[0],
+        np.array([0.9696969696969697, 0.0303030303030303]),
+    )
+    assert agent.last_state_inference.iterations == 2
+    assert agent.last_state_inference.converged
+    assert np.isclose(
+        agent.last_state_inference.variational_free_energy,
+        np.log(2.0),
+    )
+    np.testing.assert_allclose(
+        agent.last_state_inference.posteriors[0],
+        agent.posteriors[0],
+    )
 
     G, F = agent.infer_policies()
     assert G.shape == (2,)

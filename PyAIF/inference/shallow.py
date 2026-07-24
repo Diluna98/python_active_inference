@@ -1,6 +1,170 @@
-"""Configuration for single-step state and policy inference."""
+"""Configuration and implementation for single-step categorical inference."""
 
+import copy
 from dataclasses import dataclass
+from typing import Any, Optional, Sequence
+
+import numpy as np
+
+from PyAIF.numerics import log_stable_probability, softmax
+
+
+_MIN_PROBABILITY = 1e-16
+
+
+@dataclass(frozen=True)
+class ShallowStateInferenceResult:
+    """Diagnostics from one shallow categorical state-inference update."""
+
+    posteriors: tuple[np.ndarray, ...]
+    variational_free_energy: float
+    iterations: int
+    converged: bool
+
+
+def infer_shallow_states(
+    agent: Any,
+    observation: Sequence[int],
+    time_step: int,
+    *,
+    fixed_factor_index: Optional[int] = None,
+    convergence_tolerance: float = 1e-4,
+) -> ShallowStateInferenceResult:
+    """Update an agent's factorized posterior for one observation.
+
+    The forward/backward factor sweeps intentionally preserve the numerical
+    behavior of the original ``ActiveInfAgent.infer_states`` implementation.
+    """
+    agent.observations_cache[
+        time_step % agent.learning_window
+    ] = copy.deepcopy(observation)
+
+    fixed_prior = [
+        (
+            agent.posteriors[factor].copy()
+            if time_step > 0
+            else agent.D[factor].copy()
+        )
+        for factor in range(agent.num_factors)
+    ]
+    current_posteriors = [prior.copy() for prior in fixed_prior]
+
+    iteration = 0
+    previous_vfe = None
+    change_in_vfe = np.inf
+
+    while (
+        iteration < agent.num_iterations
+        and change_in_vfe >= convergence_tolerance
+    ):
+        base_posteriors = [
+            posterior.copy() for posterior in current_posteriors
+        ]
+        sweep_results = []
+
+        for factor_order in (
+            range(agent.num_factors),
+            range(agent.num_factors - 1, -1, -1),
+        ):
+            sweep_posteriors = [
+                posterior.copy() for posterior in base_posteriors
+            ]
+
+            for factor in factor_order:
+                # The likelihood contraction reads beliefs for other factors.
+                agent.posteriors = sweep_posteriors
+
+                if fixed_factor_index is not None and factor == 0:
+                    sweep_posteriors[factor] = np.zeros_like(
+                        sweep_posteriors[factor]
+                    )
+                    sweep_posteriors[factor][fixed_factor_index] = 1.0
+                    continue
+
+                log_likelihood = agent.expected_log_likelihood_einsum(
+                    observation,
+                    factor,
+                )
+                weighted = (
+                    log_stable_probability(fixed_prior[factor])
+                    + log_likelihood
+                )
+                weighted -= np.max(weighted)
+
+                posterior = softmax(weighted)
+                posterior = np.clip(posterior, _MIN_PROBABILITY, 1.0)
+                posterior /= posterior.sum()
+                sweep_posteriors[factor] = posterior
+
+            sweep_results.append(
+                [posterior.copy() for posterior in sweep_posteriors]
+            )
+
+        new_posteriors = []
+        for factor in range(agent.num_factors):
+            posterior = 0.5 * (
+                sweep_results[0][factor] + sweep_results[1][factor]
+            )
+            posterior = np.clip(posterior, _MIN_PROBABILITY, 1.0)
+            posterior /= posterior.sum()
+            new_posteriors.append(posterior)
+
+        variational_free_energy = 0.0
+        agent.posteriors = new_posteriors
+
+        for factor in range(agent.num_factors):
+            posterior = np.clip(
+                new_posteriors[factor],
+                _MIN_PROBABILITY,
+                1.0,
+            )
+            posterior /= posterior.sum()
+            prior = np.clip(
+                fixed_prior[factor],
+                _MIN_PROBABILITY,
+                1.0,
+            )
+            prior /= prior.sum()
+            log_likelihood = agent.expected_log_likelihood_einsum(
+                observation,
+                factor,
+            )
+            variational_free_energy += np.dot(
+                posterior,
+                log_stable_probability(posterior)
+                - log_stable_probability(prior),
+            )
+            variational_free_energy -= np.dot(
+                posterior,
+                log_likelihood,
+            )
+
+        if previous_vfe is not None:
+            change_in_vfe = abs(
+                variational_free_energy - previous_vfe
+            )
+
+        previous_vfe = variational_free_energy
+        current_posteriors = [
+            posterior.copy() for posterior in new_posteriors
+        ]
+        iteration += 1
+
+    agent.posteriors = [
+        posterior.copy() for posterior in current_posteriors
+    ]
+    agent.posteriors_cache[
+        time_step % agent.learning_window
+    ] = copy.deepcopy(agent.posteriors)
+
+    return ShallowStateInferenceResult(
+        posteriors=tuple(
+            posterior.copy() for posterior in agent.posteriors
+        ),
+        variational_free_energy=float(previous_vfe),
+        iterations=iteration,
+        converged=bool(change_in_vfe < convergence_tolerance),
+    )
 
 
 @dataclass(frozen=True)
@@ -14,3 +178,20 @@ class ShallowInference:
             raise ValueError("message_passing_iterations must be positive.")
         if self.convergence_tolerance <= 0:
             raise ValueError("convergence_tolerance must be positive.")
+
+    def infer_states(
+        self,
+        agent: Any,
+        observation: Sequence[int],
+        time_step: int,
+        *,
+        fixed_factor_index: Optional[int] = None,
+    ) -> ShallowStateInferenceResult:
+        """Run shallow categorical state inference with this configuration."""
+        return infer_shallow_states(
+            agent,
+            observation,
+            time_step,
+            fixed_factor_index=fixed_factor_index,
+            convergence_tolerance=self.convergence_tolerance,
+        )
