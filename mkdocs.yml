@@ -9,6 +9,7 @@ repo_name: Diluna98/python_active_inference
 
 theme:
   name: material
+  custom_dir: docs/overrides
   features:
     - navigation.instant
     - navigation.sections
