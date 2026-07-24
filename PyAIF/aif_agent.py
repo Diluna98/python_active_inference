@@ -34,7 +34,12 @@ from PyAIF.inference.shallow import (
     infer_shallow_policies,
     infer_shallow_states,
 )
-from PyAIF.inference.deep_temporal import infer_deep_temporal_states
+from PyAIF.inference.deep_temporal import (
+    deep_categorical_policy_ambiguity,
+    deep_categorical_policy_risk,
+    infer_deep_temporal_policies,
+    infer_deep_temporal_states,
+)
 
 EPS_VAL = 1e-16 # global constant for use in spm_log() function
 
@@ -1244,41 +1249,11 @@ class ActiveInfAgent:
             t = getattr(self, "_current_time", 0)
 
         if self.deep_inference:
-            #if not t%self.temporal_horizon == self.temporal_horizon-1:
-            self.risk = []
-            self.ambiguity = []
-            self.info_gain = []
-            for policy_idx in range(len(self.policies)):
-                info_gain_tot = 0
-
-                #epistemic value term (Bayesian surprise)
-                if self.continous_obs:
-                    ambiguity_term, bn = self.calculate_policy_ambiguity_continuous_mc_vec(t, policy_idx)
-                    #ambiguity_termx = self.calculate_policy_ambiguity_continuous_mc(t, policy_idx)
-                    self.ambiguity.append(ambiguity_term)
-                    risk_term = self.calculate_policy_risk_continuous_mc_vec(t, policy_idx)
-                    #risk_termx = self.calculate_policy_risk_continuous_mc(t, policy_idx)
-                    self.risk.append(risk_term)
-                    #print(f"Policy {policy_idx}: Ambiguity (MC Vec) = {ambiguity_term}, Ambiguity (MC) = {ambiguity_termx}, Risk (MC Vec) = {risk_term}, Risk (MC) = {risk_termx}")
-                    if self.learning_D:
-                        info_gain_tot += self.calculate_pD_info_gain(policy_idx)
-                        self.info_gain.append(self.calculate_pD_info_gain(policy_idx))
-                else:
-                    ambiguity_term = self.calculate_policy_ambiguity(t, policy_idx)
-                    risk_term = self.calculate_policy_risk(t, policy_idx)
-                    if self.learning_D:
-                        info_gain_tot += self.calculate_pD_info_gain(policy_idx) 
-                    if self.learning_A:
-                        info_gain_tot += self.calculate_pA_info_gain(t, policy_idx)
-                    if self.learning_B:
-                        info_gain_tot += self.calculate_pB_info_gain_vectorized(t, policy_idx)
-
-                #if self.learning_E:
-                #    info_gain_tot += self.calculate_pE_info_gain(policy_idx)
-                self.G_policy[policy_idx] = -risk_term -ambiguity_term +info_gain_tot
-
-            
-            self.update_policy_posterior(trial, t)
+            self.last_policy_inference = infer_deep_temporal_policies(
+                self,
+                trial,
+                t,
+            )
         else:
             self.last_policy_inference = infer_shallow_policies(
                 self,
@@ -1778,47 +1753,11 @@ class ActiveInfAgent:
         """
         ambiguity = 0.0
         if self.deep_inference:
-
-            for timestep in range(t%self.temporal_horizon, self.temporal_horizon):
-                # Get the factorized posteriors for this timestep
-                # qs_t is a list of vectors, one for each state factor
-                qs_t = [self.policy_dep_posteriors[policy_idx, timestep, f] for f in range(self.num_factors)]
-
-                # Term 1: Entropy of expected outcomes: H[Q(o)]
-                H_Qo = 0.0
-                for m, A_m in enumerate(self.A):
-                    test_A_m = 0
-                    # Q(o_m) = sum_s Q(s) P(o_m|s)
-                    # We compute this via sequential tensor contraction
-                    q_o_m = A_m
-                    for f in range(self.num_factors):
-                        # Contract with the posterior for factor f
-                        q_o_m = np.tensordot(q_o_m, qs_t[f], axes=(1, 0))
-                    
-                    # Add entropy of this modality to the total
-                    test_A_m = -q_o_m.dot(self.log_stable(q_o_m))
-                    H_Qo += -q_o_m.dot(self.log_stable(q_o_m))
-
-                # Term 2: Expected entropy of outcomes: E_Q(s)[H(P(o|s))]
-                E_qs_H_A = 0.0
-                for m, A_m in enumerate(self.A):
-                    # H_A_m = H[P(o_m|s)] for all s
-                    # This results in a tensor with dimensions of the state space
-                    H_A_m = -np.sum(A_m * self.log_stable(A_m), axis=0)
-
-                    # E_Q(s)[H_A_m] = sum_s Q(s) H_A_m(s)
-                    # We compute this via sequential tensor contraction
-                    expected_H_A_m = H_A_m
-                    for f in range(self.num_factors):
-                        expected_H_A_m = np.tensordot(expected_H_A_m, qs_t[f], axes=(0, 0))
-                    
-                    E_qs_H_A += expected_H_A_m
-
-                # Ambiguity for this timestep
-                ambiguity_tau = H_Qo - E_qs_H_A
-                ambiguity += ambiguity_tau
-
-            return ambiguity
+            return deep_categorical_policy_ambiguity(
+                self.A,
+                self.policy_dep_posteriors[policy_idx],
+                t % self.temporal_horizon,
+            )
         
         else:
 
@@ -2189,27 +2128,22 @@ class ActiveInfAgent:
         risk_term_policy = 0
 
         if self.deep_inference:
-            #risk_term_policy_old = 0
-            for timestep in range(t%self.temporal_horizon, self.temporal_horizon):
-                #self.policy_dep_expected_obs = self.create_object_tensor(last_dim=self.obs_dim)
-                for modality_idx, modality in enumerate(self.A):
-                    # @NOTE both of the following lines finds the posteriors over observations
-                    # One use tensordot with the joint_policy_dep_posteriors and the
-                    # other uses matlab custom dot function spm_cell_md_dot 
-                    #expected_obs = np.tensordot(modality, self.joint_policy_dep_posteriors[policy_idx, t], axes=(tuple(range(1, modality.ndim)), tuple(range(self.joint_policy_dep_posteriors[policy_idx, t].ndim))))
-                    
-                    # @NOTE: the following implimetation follows the equations in the paper
-                    # but it is not the same as the one used in the MATLAB code.
-                    #### MATLAB implimetation:
-                    #expected_obs = self.cell_md_dot(modality, self.policy_dep_posteriors[policy_idx, t, :])
-                    #risk_term_policy_old += expected_obs.dot(self.C[modality_idx][:, t])
-
-                    #@NOTE cell_md_dot() and cell_md_dot_py() do the same. cell_md_dot_py() should give better performance.
-                    #expected_obs_1 = self.cell_md_dot(modality, self.policy_dep_posteriors[policy_idx, timestep, :])
-                    #expected_obs = self.cell_md_dot_py(modality, self.policy_dep_posteriors[policy_idx, timestep, :])
-                    self.policy_dep_expected_obs[policy_idx, timestep][modality_idx] = self.cell_md_dot_py(modality, self.policy_dep_posteriors[policy_idx, timestep, :])
-                    #KL_modality = self.log_stable(expected_obs) - self.C[modality_idx][:, t]
-                    risk_term_policy += self.policy_dep_expected_obs[policy_idx, timestep][modality_idx].dot(self.C[modality_idx][:, timestep])
+            start_time = t % self.temporal_horizon
+            risk_term_policy, predictions = deep_categorical_policy_risk(
+                self.A,
+                self.C,
+                self.policy_dep_posteriors[policy_idx],
+                start_time,
+            )
+            for offset, timestep_predictions in enumerate(predictions):
+                timestep = start_time + offset
+                for modality_idx, prediction in enumerate(
+                    timestep_predictions
+                ):
+                    self.policy_dep_expected_obs[
+                        policy_idx,
+                        timestep,
+                    ][modality_idx] = prediction
             return risk_term_policy
         
         else:

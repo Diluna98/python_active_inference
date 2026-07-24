@@ -7,6 +7,7 @@ from PyAIF import (
     DeepTemporalInference,
     GenerativeModel,
     ShallowInference,
+    deep_expected_free_energy,
 )
 
 
@@ -182,6 +183,36 @@ def test_discrete_deep_agent_updates_policy_dependent_beliefs():
     assert agent.last_state_inference.converged == (True, True)
 
     G, F = agent.infer_policies()
-    assert G.shape == (2,)
-    assert F.shape == (2,)
-    assert np.isclose(agent.posterior_pi.sum(), 1.0)
+    np.testing.assert_allclose(
+        np.asarray(G, dtype=float),
+        np.array([0.9190805547355392, 0.9190805547355392]),
+    )
+    np.testing.assert_allclose(
+        np.asarray(F, dtype=float),
+        np.array([-0.2945894368115574, -0.2945894368115575]),
+    )
+    np.testing.assert_allclose(agent.posterior_pi, np.array([0.5, 0.5]))
+    np.testing.assert_allclose(
+        agent.last_policy_inference.risk,
+        np.array([-1.3862943611198906, -1.3862943611198906]),
+    )
+    np.testing.assert_allclose(
+        agent.last_policy_inference.ambiguity,
+        np.array([0.4672138063843514, 0.4672138063843514]),
+    )
+    assert agent.last_policy_inference.information_gain == (0.0, 0.0)
+    np.testing.assert_allclose(
+        agent.last_policy_inference.policy_posterior,
+        agent.posterior_pi,
+    )
+
+
+def test_deep_expected_free_energy_combines_policy_terms():
+    assert np.isclose(
+        deep_expected_free_energy(
+            risk=-1.3862943611198906,
+            ambiguity=0.4672138063843514,
+            information_gain=0.0,
+        ),
+        0.9190805547355392,
+    )

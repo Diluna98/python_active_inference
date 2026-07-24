@@ -87,3 +87,12 @@ def test_handover_one_step_numerical_regression():
     )
     assert np.argmax(agent.posterior_pi) == 20
     assert np.isclose(np.asarray(agent.posterior_pi, dtype=float).sum(), 1.0)
+    assert len(agent.last_policy_inference.risk) == agent.num_policies
+    assert len(agent.last_policy_inference.ambiguity) == agent.num_policies
+    np.testing.assert_allclose(
+        np.asarray(
+            agent.last_policy_inference.expected_free_energy,
+            dtype=float,
+        ),
+        np.asarray(G, dtype=float),
+    )

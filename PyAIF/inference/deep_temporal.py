@@ -6,7 +6,7 @@ from typing import Any
 
 import numpy as np
 
-from PyAIF.numerics import log_stable_probability, softmax
+from PyAIF.numerics import factor_dot, log_stable_probability, softmax
 
 
 @dataclass(frozen=True)
@@ -18,6 +18,99 @@ class DeepStateInferenceResult:
     complexity: tuple[float, ...]
     iterations: tuple[int, ...]
     converged: tuple[bool, ...]
+
+
+@dataclass(frozen=True)
+class DeepPolicyInferenceResult:
+    """Diagnostics from expected-free-energy evaluation over deep policies."""
+
+    expected_free_energy: np.ndarray
+    variational_free_energy: np.ndarray
+    policy_posterior: np.ndarray
+    risk: tuple[float, ...]
+    ambiguity: tuple[float, ...]
+    information_gain: tuple[float, ...]
+
+
+def deep_expected_free_energy(
+    risk: float,
+    ambiguity: float,
+    information_gain: float = 0.0,
+) -> float:
+    """Combine deep-policy value terms using the existing PyAIF convention."""
+    return float(-risk - ambiguity + information_gain)
+
+
+def deep_categorical_policy_ambiguity(
+    likelihoods: Any,
+    posterior_trajectory: Any,
+    start_time: int,
+) -> float:
+    """Calculate deep-policy ambiguity from categorical likelihoods."""
+    ambiguity = 0.0
+
+    for timestep in range(start_time, len(posterior_trajectory)):
+        factor_posteriors = list(posterior_trajectory[timestep])
+        outcome_entropy = 0.0
+        expected_likelihood_entropy = 0.0
+
+        for likelihood in likelihoods:
+            expected_outcome = likelihood
+            for posterior in factor_posteriors:
+                expected_outcome = np.tensordot(
+                    expected_outcome,
+                    posterior,
+                    axes=(1, 0),
+                )
+            outcome_entropy += -expected_outcome.dot(
+                log_stable_probability(expected_outcome)
+            )
+
+            likelihood_entropy = -np.sum(
+                likelihood * log_stable_probability(likelihood),
+                axis=0,
+            )
+            expected_entropy = likelihood_entropy
+            for posterior in factor_posteriors:
+                expected_entropy = np.tensordot(
+                    expected_entropy,
+                    posterior,
+                    axes=(0, 0),
+                )
+            expected_likelihood_entropy += expected_entropy
+
+        ambiguity += outcome_entropy - expected_likelihood_entropy
+
+    return float(ambiguity)
+
+
+def deep_categorical_policy_risk(
+    likelihoods: Any,
+    preferences: Any,
+    posterior_trajectory: Any,
+    start_time: int,
+) -> tuple[float, tuple[tuple[np.ndarray, ...], ...]]:
+    """Calculate categorical preference value and predicted observations."""
+    risk = 0.0
+    predictions = []
+
+    for timestep in range(start_time, len(posterior_trajectory)):
+        factor_posteriors = list(posterior_trajectory[timestep])
+        timestep_predictions = []
+
+        for modality, likelihood in enumerate(likelihoods):
+            expected_observation = factor_dot(
+                likelihood,
+                factor_posteriors,
+            )
+            timestep_predictions.append(expected_observation)
+            risk += expected_observation.dot(
+                preferences[modality][:, timestep]
+            )
+
+        predictions.append(tuple(timestep_predictions))
+
+    return float(risk), tuple(predictions)
 
 
 def infer_deep_temporal_states(
@@ -206,6 +299,76 @@ def infer_deep_temporal_states(
     )
 
 
+def infer_deep_temporal_policies(
+    agent: Any,
+    trial: int,
+    time_step: int,
+) -> DeepPolicyInferenceResult:
+    """Evaluate categorical deep policies and update their posterior."""
+    agent.risk = []
+    agent.ambiguity = []
+    agent.info_gain = []
+    policy_risk = []
+    policy_ambiguity = []
+    policy_information_gain = []
+
+    for policy_index in range(len(agent.policies)):
+        information_gain = 0.0
+        start_time = time_step % agent.temporal_horizon
+        posterior_trajectory = agent.policy_dep_posteriors[policy_index]
+        ambiguity = deep_categorical_policy_ambiguity(
+            agent.A,
+            posterior_trajectory,
+            start_time,
+        )
+        risk, predictions = deep_categorical_policy_risk(
+            agent.A,
+            agent.C,
+            posterior_trajectory,
+            start_time,
+        )
+        for offset, timestep_predictions in enumerate(predictions):
+            timestep = start_time + offset
+            for modality, prediction in enumerate(timestep_predictions):
+                agent.policy_dep_expected_obs[
+                    policy_index,
+                    timestep,
+                ][modality] = prediction
+
+        if agent.learning_D:
+            information_gain += agent.calculate_pD_info_gain(policy_index)
+        if agent.learning_A:
+            information_gain += agent.calculate_pA_info_gain(
+                time_step,
+                policy_index,
+            )
+        if agent.learning_B:
+            information_gain += agent.calculate_pB_info_gain_vectorized(
+                time_step,
+                policy_index,
+            )
+
+        policy_risk.append(float(risk))
+        policy_ambiguity.append(float(ambiguity))
+        policy_information_gain.append(float(information_gain))
+        agent.G_policy[policy_index] = deep_expected_free_energy(
+            risk,
+            ambiguity,
+            information_gain,
+        )
+
+    agent.update_policy_posterior(trial, time_step)
+
+    return DeepPolicyInferenceResult(
+        expected_free_energy=copy.deepcopy(agent.G_policy),
+        variational_free_energy=copy.deepcopy(agent.F_policy),
+        policy_posterior=copy.deepcopy(agent.posterior_pi),
+        risk=tuple(policy_risk),
+        ambiguity=tuple(policy_ambiguity),
+        information_gain=tuple(policy_information_gain),
+    )
+
+
 @dataclass(frozen=True)
 class DeepTemporalInference:
     horizon: int
@@ -231,3 +394,12 @@ class DeepTemporalInference:
             time_step,
             convergence_tolerance=self.convergence_tolerance,
         )
+
+    def infer_policies(
+        self,
+        agent: Any,
+        trial: int,
+        time_step: int,
+    ) -> DeepPolicyInferenceResult:
+        """Evaluate deep categorical policies and update their posterior."""
+        return infer_deep_temporal_policies(agent, trial, time_step)
