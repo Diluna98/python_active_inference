@@ -8,14 +8,28 @@ import time
 import string
 from PyAIF import utils
 from collections.abc import Iterable
-from scipy.special import digamma, gammaln, loggamma, psi
+from scipy.special import digamma, gammaln, loggamma
 import matplotlib.pyplot as plt
 import multiprocessing
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import shared_memory
-from itertools import chain
 from joblib import Parallel, delayed
+from PyAIF.numerics import (
+    categorical_kl_terms,
+    dirichlet_kl,
+    factor_dot,
+    log_beta as numerical_log_beta,
+    log_stable_additive,
+    log_stable_object_array,
+    log_stable_probability,
+    one_hot,
+    softmax as numerical_softmax,
+    spm_dot as numerical_spm_dot,
+    spm_psi as numerical_spm_psi,
+    transpose_transition,
+    wnorm,
+)
 
 EPS_VAL = 1e-16 # global constant for use in spm_log() function
 
@@ -76,18 +90,15 @@ def infer_states_single_policy(t, policy_idx, num_nmp, num_f, temp_hor, state_po
         return t, policy_idx, state_posteriors, policy_F
 
 def softmax(x, axis = 0, gamma=1.0):
-    exp_x = np.exp(gamma * x - np.max(gamma * x))
-    return exp_x / np.sum(exp_x, axis=axis, keepdims=True)
+    return numerical_softmax(x, axis=axis, gamma=gamma)
 
 def transpose_Bfa(B_fa):
     # @NOTE: this function is not correct
-    B_T = copy.deepcopy(B_fa)
-    
-    B_T = np.transpose(B_T, (1, 0))  # Transpose state dimensions, keep actions
-    B_T = np.divide(B_T, B_T.sum(axis=0))
-    B_T = np.nan_to_num(B_T, nan=0.0)  # Replace NaNs with zero
-    
-    return B_T
+    return transpose_transition(
+        B_fa,
+        normalize=True,
+        replace_nan=True,
+    )
 
 def expected_log_likelihood(obs, factor, tau, qs, num_f, A):
     log_likelihoods = np.zeros(qs[tau, factor].size)
@@ -105,16 +116,13 @@ def expected_log_likelihood(obs, factor, tau, qs, num_f, A):
     return log_likelihoods
 
 def cell_md_dot_py(X, x):
-    p = X.copy()
-    for f in reversed(range(len(x))):
-        p = np.tensordot(p, x[f], axes=(f + 1, 0))
-    return p
+    return factor_dot(X, x)
 
 def log_stable(array, val=np.exp(-16)):
     """
     Adds small epsilon value to an array before natural logging it
     """
-    return np.log(array + val)
+    return log_stable_additive(array, val=val)
 
 # Reconstructs an object array (like A or C) from shared memory
 def _reconstruct_object_array_from_shm(shm_info):
@@ -2505,51 +2513,15 @@ class ActiveInfAgent:
     
     def cell_md_dot_py(self, X, x):
         # use this for observation prediction only
-        p = X.copy()
-        for f in reversed(range(len(x))):
-            p = np.tensordot(p, x[f], axes=(f + 1, 0))
-        return p
+        return factor_dot(X, x)
     
     def spm_dot(self, X, x):
-
-        dims = list(range(1, len(x) + 1))
-
-        arg_list = (
-            [X, list(range(X.ndim))]
-            + list(chain(*([x[i], [dims[i]]] for i in range(len(x)))))
-            + [[0]]
-        )
-
-        Y = np.einsum(*arg_list)
-
-        if np.prod(Y.shape) <= 1:
-            Y = np.array([Y.item()], dtype="float64")
-
-        return Y
+        return numerical_spm_dot(X, x)
 
 
     
     def cell_md_dot(self, X, x):
-        # Initialize the dimensions to sum over
-        temp_list = np.array(range(len(x)))
-        ones_list = np.ones(len(temp_list))
-        DIM = temp_list + ones_list*X.ndim - ones_list*len(x)
-        s_ini = np.ones(X.ndim, dtype=int)
-        for d in range(len(x)):
-            # Create a shape for the current element of x
-            s = copy.deepcopy(s_ini)
-            s[int(DIM[d])] = x[d].shape[0]  # Set the corresponding dimension size
-            reshaped_x = np.reshape(x[d], s) 
-            # Perform element-wise multiplication (broadcasting)
-            X = X * reshaped_x
-
-            # Sum over the appropriate dimension
-            X = np.sum(X, axis=int(DIM[d]))
-
-        # Remove singleton dimensions
-        X = np.squeeze(X)
-        
-        return X
+        return np.squeeze(factor_dot(X, x))
             
     def choose_action(self, trial, t):
         action_list = None
@@ -2941,8 +2913,7 @@ class ActiveInfAgent:
 
     
     def softmax(self, x, axis = 0, gamma=1.0):
-        exp_x = np.exp(gamma * x - np.max(gamma * x))
-        return exp_x / np.sum(exp_x, axis=axis, keepdims=True)
+        return numerical_softmax(x, axis=axis, gamma=gamma)
     
     def softmax_whole(self, x, gamma=1.0):
         x_copy = copy.deepcopy(x)
@@ -3312,20 +3283,14 @@ class ActiveInfAgent:
         plt.show()
     
     def transpose_Bfa(self, B_fa):
-        B_T = copy.deepcopy(B_fa) + EPS_VAL
-        
-        B_T = np.transpose(B_T, (1, 0))  # Transpose state dimensions, keep actions
-        
-        return B_T
+        return transpose_transition(B_fa, epsilon=EPS_VAL)
     
     def transpose_Bfa_temp(self, B_fa):
-        B_T = copy.deepcopy(B_fa) + EPS_VAL
-        
-        B_T = np.transpose(B_T, (1, 0))  # Transpose state dimensions, keep actions
-        B_T = np.divide(B_T, B_T.sum(axis=0))
-        #B_T = np.nan_to_num(B_T, nan=0.0)  # Replace NaNs with zero
-        
-        return B_T
+        return transpose_transition(
+            B_fa,
+            epsilon=EPS_VAL,
+            normalize=True,
+        )
     
     def _transpose_B_matrix(self):
         T_pB = copy.deepcopy(self.pB)
@@ -3436,14 +3401,13 @@ class ActiveInfAgent:
         return arr
     
     def log_stable(self, array, eps=1e-16):
-        return np.log(np.clip(array, eps, 1.0))
+        return log_stable_probability(array, eps=eps)
     
     def log_stable_numpy_obj(self, numpy_obj, eps=1e-16):
         # This function is designed to handle numpy objects (arrays or arrays) and apply log with epsilon
         # @NOTE This function can only be used if all the factors has same number of cardinalities
         # @NOTE this function changes the original numpy object to a regular numpy array expanding an axes for cardinalities
-        dist_numeric = np.array(numpy_obj.tolist(), dtype=float)
-        return np.log(np.clip(dist_numeric, eps, 1.0))
+        return log_stable_object_array(numpy_obj, eps=eps)
 
     def update_observation(self, obs):
         # Store the new observation
@@ -3470,29 +3434,16 @@ class ActiveInfAgent:
         self.latest_obss = self.latest_obss[-self.temporal_horizon:]
 
     def one_hot_encode(self, obs_modality, obs_value, obs_dims):
-        # Create a zero vector of the required size for the given modality
-        one_hot_obs = np.zeros(obs_dims[obs_modality], dtype=int)
-        
-        # Set the index corresponding to the observation value to 1
-        one_hot_obs[obs_value] = 1
-        
-        return one_hot_obs.tolist()  # Convert to list if needed
+        return one_hot(obs_value, obs_dims[obs_modality]).tolist()
     
     def wnorm_new(self, p, val=np.exp(-16)):
         # @NOTE here the equation (40) is implimented
         # compared to the MATLAB code.
         # according to the equation (40); w = 0.5*(avg - norm)
-        p_temp = copy.deepcopy(p)
-        p_temp = p + val
-        norm = np.divide(1.0, np.sum(p_temp, axis=0))
-        avg = np.divide(1.0, p_temp)
-        del p_temp
-        return 0.5*(norm - avg)
+        return wnorm(p, val=val)
     
     def KL_categorical(self, p, q):
-    # p, q are arrays over observation categories, sum to 1
-        eps = 1e-16  # prevent log(0)
-        return p * np.log((p + eps) / (q + eps))
+        return categorical_kl_terms(p, q)
 
     
     def KL_dirichlet(self, q, p):
@@ -3511,12 +3462,7 @@ class ActiveInfAgent:
         d : float
             KL divergence sum over columns
         """
-        # Compute KL divergence
-        p_copy = copy.deepcopy(p)
-        q_copy = copy.deepcopy(q)
-        d = self.log_beta(p_copy) - self.log_beta(q_copy) - np.sum((p_copy - q_copy) * spm_psi(q_copy + 1/32), axis=0)
-        del p_copy, q_copy
-        return np.sum(d)  # Sum over all columns
+        return dirichlet_kl(q, p)
         
     def log_beta(self, z):
         """
@@ -3530,20 +3476,7 @@ class ActiveInfAgent:
         y : np.array
             Log Beta function values.
         """
-        if z.ndim == 1:  # Vector case
-            z = z[z > 0]  # Remove zeros
-            return np.sum(gammaln(z)) - gammaln(np.sum(z))
-
-        else:  # Multi-dimensional case
-            shape = z.shape[1:]  # Exclude the first dimension
-            y = np.zeros(shape)  # Initialize output
-            
-            # Iterate over all dimensions beyond the first
-            it = np.ndindex(shape)
-            for idx in it:
-                y[idx] = self.log_beta(z[(slice(None),) + idx])  # Recursive computation
-            
-            return y
+        return numerical_log_beta(z)
         
     def get_expected_posterior_entropy(self):
 
@@ -3659,7 +3592,7 @@ def spm_psi(A):
     # spm_psi MATLAB function
     # Copyright (C) 2015 Wellcome Trust Centre for Neuroimaging
     # by Karl Friston
-    return psi(A) - psi(np.sum(A, axis=0, keepdims=True))
+    return numerical_spm_psi(A)
 
 
 class FeatureDeviationDetector:
