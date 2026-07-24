@@ -11,6 +11,7 @@ from PyAIF import (
     deep_expected_free_energy,
 )
 from PyAIF.inference.deep_temporal import _infer_deep_policy_states
+from PyAIF.inference.continuous import continuous_policy_terms
 
 
 def object_array(*arrays):
@@ -252,6 +253,21 @@ def test_continuous_parallel_policy_scoring_matches_serial(
         np.asarray(agents[0].G_policy, dtype=float),
     )
     np.testing.assert_allclose(agents[1].posterior_pi, agents[0].posterior_pi)
+
+
+def test_continuous_sampling_normalizes_numerically_imprecise_beliefs():
+    likelihood = continuous_likelihood()
+    likelihood.exact_state_limit = 1
+    likelihood.policy_samples = 50
+
+    risk, ambiguity, predictions = continuous_policy_terms(
+        likelihood,
+        [np.array([0.5, 0.500000000001])],
+    )
+
+    assert np.isfinite(risk)
+    assert np.isfinite(ambiguity)
+    assert np.isclose(predictions[0].sum(), 1.0)
 
 
 def test_categorical_likelihood_rejects_incompatible_state_shape():

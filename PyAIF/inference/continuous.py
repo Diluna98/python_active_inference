@@ -26,14 +26,29 @@ def _state_samples(
     *,
     seed_offset: int,
 ) -> tuple[np.ndarray, np.ndarray]:
-    state_count = int(np.prod([len(belief) for belief in beliefs]))
+    normalized_beliefs = []
+    for factor, belief in enumerate(beliefs):
+        normalized = np.asarray(belief, dtype=float)
+        if (
+            normalized.ndim != 1
+            or np.any(~np.isfinite(normalized))
+            or np.any(normalized < 0)
+            or normalized.sum() <= 0
+        ):
+            raise ValueError(
+                f"State belief {factor} must be a finite, nonnegative "
+                "one-dimensional distribution."
+            )
+        normalized_beliefs.append(normalized / normalized.sum())
+
+    state_count = int(np.prod([len(belief) for belief in normalized_beliefs]))
     if state_count <= likelihood.exact_state_limit:
         samples = np.asarray(
-            list(product(*(range(len(belief)) for belief in beliefs))),
+            list(product(*(range(len(belief)) for belief in normalized_beliefs))),
             dtype=int,
         )
         weights = np.ones(len(samples), dtype=float)
-        for factor, belief in enumerate(beliefs):
+        for factor, belief in enumerate(normalized_beliefs):
             weights *= np.asarray(belief, dtype=float)[samples[:, factor]]
         weights /= weights.sum()
         return samples, weights
@@ -45,7 +60,7 @@ def _state_samples(
     samples = np.column_stack(
         [
             rng.choice(len(belief), size=likelihood.policy_samples, p=belief)
-            for belief in beliefs
+            for belief in normalized_beliefs
         ]
     )
     return samples, np.full(likelihood.policy_samples, 1.0 / likelihood.policy_samples)
