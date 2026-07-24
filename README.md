@@ -5,6 +5,22 @@ factorised discrete hidden states and either categorical or continuous
 observations. It provides single-step inference, deep temporal inference,
 policy evaluation, action selection, and parameter-learning hooks.
 
+## Citation
+
+If you use PyAIF in your research, please cite:
+
+D. A. Warnakulasuriya, J. Plosila and H. Haghbayan, “Towards
+Self-Supervised Intent Recognition in Human-Robot Collaboration using Active
+Inference,” *2026 11th International Conference on Control and Robotics
+Engineering (ICCRE)*, Kyoto, Japan, 2026, pp. 191–198,
+[doi:10.1109/ICCRE69951.2026.11593576](https://doi.org/10.1109/ICCRE69951.2026.11593576).
+
+## Demonstration
+
+[![Active Inference POMDP implementation on a Franka Emika Panda Robot](https://i.ytimg.com/vi/4YzYsFVc6bE/hqdefault.jpg)](https://youtu.be/4YzYsFVc6bE)
+
+*Active Inference POMDP implementation on a Franka Emika Panda Robot — ASL Lab UTU.*
+
 ## Learning under uncertainty
 
 ![Active-inference learning response to a context change](examples/learning_under_uncertainty/vfe_transition.gif)
