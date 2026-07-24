@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install package and development tools
+        run: python -m pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check PyAIF tests
+      - name: Check formatting
+        run: ruff format --check PyAIF tests
+      - name: Test
+        run: pytest
+      - name: Run component quickstart
+        if: matrix.python-version == '3.13'
+        run: python examples/quickstart_discrete.py
+
+  package:
+    name: Build distributions
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install build tools
+        run: python -m pip install build twine
+      - name: Build wheel and source distribution
+        run: python -m build
+      - name: Validate distribution metadata
+        run: python -m twine check dist/*
+      - name: Smoke-test the built wheel
+        run: |
+          python -m venv /tmp/pyaif-smoke
+          /tmp/pyaif-smoke/bin/python -m pip install dist/*.whl
+          cd /tmp
+          /tmp/pyaif-smoke/bin/python -c "import PyAIF; assert PyAIF.__version__ == '0.1.0'"
+      - name: Verify wheel contents
+        run: |
+          python - <<'PY'
+          import glob
+          import zipfile
+
+          wheel = glob.glob("dist/*.whl")[0]
+          names = zipfile.ZipFile(wheel).namelist()
+          assert "PyAIF/inference/deep_temporal.py" in names
+          assert "PyAIF/learning/categorical.py" in names
+          assert not any("examples/" in name for name in names)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-distributions
+          path: dist/

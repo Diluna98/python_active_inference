@@ -1,3 +1,7 @@
+include CHANGELOG.md
+include CONTRIBUTING.md
+recursive-include docs *.md
+
 prune examples
 prune profiling_results
 prune PyAIF/likelihood_models

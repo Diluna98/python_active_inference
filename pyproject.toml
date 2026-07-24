@@ -24,6 +24,18 @@ authors = [
 ]
 readme = "README.md"
 requires-python = ">=3.9"
+keywords = ["active-inference", "bayesian-inference", "generative-models"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
   "numpy",
   "scipy",
@@ -33,8 +45,28 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "build>=1.2",
   "pytest>=8",
+  "ruff>=0.12",
+  "twine>=6",
 ]
 
 [project.urls]
 Homepage = "https://github.com/Diluna98/python_active_inference"
+Issues = "https://github.com/Diluna98/python_active_inference/issues"
+Repository = "https://github.com/Diluna98/python_active_inference.git"
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 88
+extend-exclude = [
+  "PyAIF/aif_agent.py",
+  "examples",
+]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

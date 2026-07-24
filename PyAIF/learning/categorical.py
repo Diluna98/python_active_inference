@@ -32,9 +32,7 @@ def update_dirichlet_parameters(
     parameters = np.asarray(parameters)
     baseline = np.asarray(baseline)
     evidence = np.asarray(evidence)
-    if not (
-        parameters.shape == baseline.shape == evidence.shape
-    ):
+    if not (parameters.shape == baseline.shape == evidence.shape):
         raise ValueError(
             "parameters, baseline, and evidence must have identical shapes."
         )
@@ -46,9 +44,7 @@ def update_dirichlet_parameters(
         raise ValueError("support must match the parameter shape.")
 
     updated = (
-        forgetting_rate * (parameters - baseline)
-        + baseline
-        + learning_rate * evidence
+        forgetting_rate * (parameters - baseline) + baseline + learning_rate * evidence
     )
     return np.where(support, updated, parameters)
 
@@ -134,9 +130,7 @@ def learn_deep_categorical(agent: Any) -> CategoricalLearningResult:
         for factor in range(agent.num_factors):
             evidence = agent.bayesian_mod_avg[final_time, factor]
             forgetting_rate = (
-                0.0
-                if factor in agent.controlable_states
-                else agent.forgeting_rate
+                0.0 if factor in agent.controlable_states else agent.forgeting_rate
             )
             agent.pD[factor] = update_dirichlet_parameters(
                 agent.pD[factor],
@@ -159,15 +153,13 @@ def learn_deep_categorical(agent: Any) -> CategoricalLearningResult:
                     agent.bayesian_mod_avg[time_step, factor],
                     transition_slice > 0,
                 )
-                agent.pB[factor][:, :, action] = (
-                    update_dirichlet_parameters(
-                        agent.pB[factor][:, :, action],
-                        agent.pB_0[factor][:, :, action],
-                        evidence,
-                        learning_rate=agent.learning_rate,
-                        forgetting_rate=agent.forgeting_rate,
-                        support=evidence > 0,
-                    )
+                agent.pB[factor][:, :, action] = update_dirichlet_parameters(
+                    agent.pB[factor][:, :, action],
+                    agent.pB_0[factor][:, :, action],
+                    evidence,
+                    learning_rate=agent.learning_rate,
+                    forgetting_rate=agent.forgeting_rate,
+                    support=evidence > 0,
                 )
         agent.B = agent._normalize_colums(agent.pB)
         learned_transition = True
@@ -229,24 +221,20 @@ def learn_shallow_categorical(
     if agent.learning_B:
         for time_index in range(1, agent.learning_window):
             for factor in agent.controlable_states:
-                action = int(
-                    agent.action_posteriors_cache[factor, time_index - 1]
-                )
+                action = int(agent.action_posteriors_cache[factor, time_index - 1])
                 transition_slice = agent.B[factor][:, :, action]
                 evidence = categorical_transition_evidence(
                     agent.posteriors_cache[time_index - 1, factor],
                     agent.posteriors_cache[time_index, factor],
                     transition_slice > 0,
                 )
-                agent.pB[factor][:, :, action] = (
-                    update_dirichlet_parameters(
-                        agent.pB[factor][:, :, action],
-                        agent.pB_0[factor][:, :, action],
-                        evidence,
-                        learning_rate=agent.learning_rate,
-                        forgetting_rate=agent.forgeting_rate,
-                        support=evidence > 0,
-                    )
+                agent.pB[factor][:, :, action] = update_dirichlet_parameters(
+                    agent.pB[factor][:, :, action],
+                    agent.pB_0[factor][:, :, action],
+                    evidence,
+                    learning_rate=agent.learning_rate,
+                    forgetting_rate=agent.forgeting_rate,
+                    support=evidence > 0,
                 )
         agent.B = agent._normalize_colums(agent.pB)
         learned_transition = True

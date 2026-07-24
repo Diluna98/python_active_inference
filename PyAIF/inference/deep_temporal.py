@@ -104,9 +104,7 @@ def deep_categorical_policy_risk(
                 factor_posteriors,
             )
             timestep_predictions.append(expected_observation)
-            risk += expected_observation.dot(
-                preferences[modality][:, timestep]
-            )
+            risk += expected_observation.dot(preferences[modality][:, timestep])
 
         predictions.append(tuple(timestep_predictions))
 
@@ -145,9 +143,7 @@ def infer_deep_temporal_states(
                     likelihood_message = np.zeros(agent.states_dim[factor])
 
                     if time_step % agent.temporal_horizon == 0:
-                        depolarization = log_stable_probability(
-                            agent.D[factor]
-                        )
+                        depolarization = log_stable_probability(agent.D[factor])
                     else:
                         depolarization = log_stable_probability(
                             agent.policy_dep_posteriors[
@@ -158,20 +154,16 @@ def infer_deep_temporal_states(
                         )
 
                     if tau in agent.observations:
-                        likelihood_message = (
-                            agent.expected_log_likelihood_einsum(
-                                agent.observations[tau],
-                                factor,
-                                policy_index,
-                                tau_reference,
-                            )
+                        likelihood_message = agent.expected_log_likelihood_einsum(
+                            agent.observations[tau],
+                            factor,
+                            policy_index,
+                            tau_reference,
                         )
 
                     if tau_reference == 0:
                         if time_step < agent.temporal_horizon:
-                            forward_message = log_stable_probability(
-                                agent.D[factor]
-                            )
+                            forward_message = log_stable_probability(agent.D[factor])
                         else:
                             forward_message = log_stable_probability(
                                 agent.previous_qs_T[factor]
@@ -265,12 +257,13 @@ def infer_deep_temporal_states(
                             tau_reference,
                             factor,
                         ]
-                        complexity += updated_posterior.dot(
-                            -log_stable_probability(updated_posterior)
-                            + 0.5 * (
-                                forward_message + backward_message
+                        complexity += (
+                            updated_posterior.dot(
+                                -log_stable_probability(updated_posterior)
+                                + 0.5 * (forward_message + backward_message)
                             )
-                        ) / agent.states_dim[factor]
+                            / agent.states_dim[factor]
+                        )
 
             completed_iterations = message_passing_index + 1
             if (
@@ -291,9 +284,7 @@ def infer_deep_temporal_states(
     return DeepStateInferenceResult(
         free_energy=copy.deepcopy(agent.F_policy),
         accuracy=tuple(float(value) for value in agent.accuracy_policy),
-        complexity=tuple(
-            float(value) for value in agent.complexity_policy
-        ),
+        complexity=tuple(float(value) for value in agent.complexity_policy),
         iterations=tuple(iterations),
         converged=tuple(convergence),
     )

@@ -26,7 +26,9 @@ class GenerativeModel:
     def __post_init__(self) -> None:
         states_dim = tuple(int(np.asarray(prior).shape[0]) for prior in self.D)
         controls_dim = tuple(int(size) for size in self.controls_dim)
-        controllable_factors = tuple(int(factor) for factor in self.controllable_factors)
+        controllable_factors = tuple(
+            int(factor) for factor in self.controllable_factors
+        )
 
         if not states_dim:
             raise ValueError("D must contain at least one hidden-state factor.")
@@ -36,7 +38,9 @@ class GenerativeModel:
             )
         if any(size < 1 for size in controls_dim):
             raise ValueError("Every control dimension must be at least one.")
-        if any(factor < 0 or factor >= len(states_dim) for factor in controllable_factors):
+        if any(
+            factor < 0 or factor >= len(states_dim) for factor in controllable_factors
+        ):
             raise ValueError("controllable_factors contains an invalid factor index.")
         if len(self.B) != len(states_dim):
             raise ValueError("B must contain one transition array per state factor.")

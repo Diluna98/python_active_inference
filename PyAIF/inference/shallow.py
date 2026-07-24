@@ -46,16 +46,12 @@ def infer_shallow_states(
     The forward/backward factor sweeps intentionally preserve the numerical
     behavior of the original ``ActiveInfAgent.infer_states`` implementation.
     """
-    agent.observations_cache[
-        time_step % agent.learning_window
-    ] = copy.deepcopy(observation)
+    agent.observations_cache[time_step % agent.learning_window] = copy.deepcopy(
+        observation
+    )
 
     fixed_prior = [
-        (
-            agent.posteriors[factor].copy()
-            if time_step > 0
-            else agent.D[factor].copy()
-        )
+        (agent.posteriors[factor].copy() if time_step > 0 else agent.D[factor].copy())
         for factor in range(agent.num_factors)
     ]
     current_posteriors = [prior.copy() for prior in fixed_prior]
@@ -64,31 +60,22 @@ def infer_shallow_states(
     previous_vfe = None
     change_in_vfe = np.inf
 
-    while (
-        iteration < agent.num_iterations
-        and change_in_vfe >= convergence_tolerance
-    ):
-        base_posteriors = [
-            posterior.copy() for posterior in current_posteriors
-        ]
+    while iteration < agent.num_iterations and change_in_vfe >= convergence_tolerance:
+        base_posteriors = [posterior.copy() for posterior in current_posteriors]
         sweep_results = []
 
         for factor_order in (
             range(agent.num_factors),
             range(agent.num_factors - 1, -1, -1),
         ):
-            sweep_posteriors = [
-                posterior.copy() for posterior in base_posteriors
-            ]
+            sweep_posteriors = [posterior.copy() for posterior in base_posteriors]
 
             for factor in factor_order:
                 # The likelihood contraction reads beliefs for other factors.
                 agent.posteriors = sweep_posteriors
 
                 if fixed_factor_index is not None and factor == 0:
-                    sweep_posteriors[factor] = np.zeros_like(
-                        sweep_posteriors[factor]
-                    )
+                    sweep_posteriors[factor] = np.zeros_like(sweep_posteriors[factor])
                     sweep_posteriors[factor][fixed_factor_index] = 1.0
                     continue
 
@@ -96,10 +83,7 @@ def infer_shallow_states(
                     observation,
                     factor,
                 )
-                weighted = (
-                    log_stable_probability(fixed_prior[factor])
-                    + log_likelihood
-                )
+                weighted = log_stable_probability(fixed_prior[factor]) + log_likelihood
                 weighted -= np.max(weighted)
 
                 posterior = softmax(weighted)
@@ -107,15 +91,11 @@ def infer_shallow_states(
                 posterior /= posterior.sum()
                 sweep_posteriors[factor] = posterior
 
-            sweep_results.append(
-                [posterior.copy() for posterior in sweep_posteriors]
-            )
+            sweep_results.append([posterior.copy() for posterior in sweep_posteriors])
 
         new_posteriors = []
         for factor in range(agent.num_factors):
-            posterior = 0.5 * (
-                sweep_results[0][factor] + sweep_results[1][factor]
-            )
+            posterior = 0.5 * (sweep_results[0][factor] + sweep_results[1][factor])
             posterior = np.clip(posterior, _MIN_PROBABILITY, 1.0)
             posterior /= posterior.sum()
             new_posteriors.append(posterior)
@@ -142,8 +122,7 @@ def infer_shallow_states(
             )
             variational_free_energy += np.dot(
                 posterior,
-                log_stable_probability(posterior)
-                - log_stable_probability(prior),
+                log_stable_probability(posterior) - log_stable_probability(prior),
             )
             variational_free_energy -= np.dot(
                 posterior,
@@ -151,27 +130,19 @@ def infer_shallow_states(
             )
 
         if previous_vfe is not None:
-            change_in_vfe = abs(
-                variational_free_energy - previous_vfe
-            )
+            change_in_vfe = abs(variational_free_energy - previous_vfe)
 
         previous_vfe = variational_free_energy
-        current_posteriors = [
-            posterior.copy() for posterior in new_posteriors
-        ]
+        current_posteriors = [posterior.copy() for posterior in new_posteriors]
         iteration += 1
 
-    agent.posteriors = [
-        posterior.copy() for posterior in current_posteriors
-    ]
-    agent.posteriors_cache[
-        time_step % agent.learning_window
-    ] = copy.deepcopy(agent.posteriors)
+    agent.posteriors = [posterior.copy() for posterior in current_posteriors]
+    agent.posteriors_cache[time_step % agent.learning_window] = copy.deepcopy(
+        agent.posteriors
+    )
 
     return ShallowStateInferenceResult(
-        posteriors=tuple(
-            posterior.copy() for posterior in agent.posteriors
-        ),
+        posteriors=tuple(posterior.copy() for posterior in agent.posteriors),
         variational_free_energy=float(previous_vfe),
         iterations=iteration,
         converged=bool(change_in_vfe < convergence_tolerance),
@@ -225,15 +196,10 @@ def infer_shallow_policies(
 
         # Retained for compatibility; the legacy score currently disables it.
         cost = agent._calculate_cost(policy_index)
-        agent.G_policy[policy_index] = (
-            -risk + ambiguity + information_gain - cost * 0
-        )
+        agent.G_policy[policy_index] = -risk + ambiguity + information_gain - cost * 0
 
     agent.posterior_pi = softmax(
-        np.float64(
-            log_stable_probability(agent.E)
-            + policy_precision * agent.G_policy
-        ),
+        np.float64(log_stable_probability(agent.E) + policy_precision * agent.G_policy),
         axis=None,
     )
 
