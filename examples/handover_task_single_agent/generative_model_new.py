@@ -545,9 +545,9 @@ def create_generative_model():
 
     ################# - (voice) h_feedback_commands: ['positive', 'negative', 'not_clear'] ################
 
-    C[5] = np.array([[10.0, 10.0, 10.0, 10.0], #positive
-                     [-5.0, -5.0, -5.0, -5.0], #negative
-                     [0.5, 0.5, 0.5, 0.5]])#not_clear
+    C[5] = np.array([[0.0, 0.0, 0.0, 0.0], #positive
+                     [0.0, 0.0, 0.0, 0.0], #negative
+                     [0.0, 0.0, 0.0, 0.0]])#not_clear
 
     ################# - (3D-pose)     end_effector_position: ['ideal', 'slot1', 'slot2', 'slot3', 'slot4'] ################
 

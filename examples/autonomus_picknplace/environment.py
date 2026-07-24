@@ -3,8 +3,7 @@ import random
 
 class SortingEnv:
     
-    def __init__(self, reliability=100):
-        self.reliability = reliability  # human reliability percentage
+    def __init__(self):
         self.slot_assignment = {
             'safe': ['slot1', 'slot3'],
             'hazardous': ['slot2', 'slot3']
@@ -12,9 +11,6 @@ class SortingEnv:
         self.object_types = ['safe', 'hazardous']
         self.slots = ['slot1', 'slot2', 'slot3']
         self.pickup_object = None
-        self.metacog_sig = 'obeyed'  # Initialize metacognition signal
-        self.h_command_memory = 'ideal'  # Initialize human command memory
-        #self.reset()
 
 
     def reset(self):
@@ -23,23 +19,13 @@ class SortingEnv:
             'slot1': 0.01,
             'slot2': 0.01,
             'slot3': 0.01,
-            'voice_command': 0.00,
-            'feedback_command': 0.10,
-            'endeff_pos': 0.00,
-            'h_command_memory': 0.00
+            'feedback': 0.01,
         }
         self.slot_status = {s: 'empty' for s in self.slots}
-        self.h_trustworthiness = self.reliability
-        if self.pickup_object is None:
-            self.pickup_object = random.choice(self.object_types)
-        self.h_command = self._generate_human_command()
-        self.h_feedback = 'positive'
+        #if self.pickup_object is None:
+        self.pickup_object = random.choice(self.object_types)
+        self.feedback = 'positive'
         self.endeff_position = 'ideal'
-        self.h_command_memory = 'ideal'
-        #self.slot_status['slot1'] = 'fragile'
-        #self.slot_status['slot2'] = 'safe'
-        #self.slot_status['slot3'] = 'hazardous'
-        #self.slot_status['slot4'] = 'fragile'
         self.obj_placement = False  # Flag to indicate if object is placed
         return self._obs_to_index_vector(self._get_observation())
 
@@ -62,13 +48,6 @@ class SortingEnv:
         else:
             return self.pickup_object
 
-    
-    def _generate_human_command(self):
-        if np.random.rand() <= self.reliability / 100.0:
-            return self._get_valid_slot()
-        else:
-            return self._get_invalid_slot()
-
 
     def _get_valid_slot(self):
         valid = [s for s in self.slot_assignment[self.pickup_object] if self.slot_status[s] == 'empty']
@@ -84,9 +63,7 @@ class SortingEnv:
         observations = {
             'picking_slot': self.pickup_object,
             'slot_status': self.slot_status.copy(),
-            'h_command': self.h_command,
-            'h_trustworthiness': self.h_trustworthiness,
-            'h_feedback': self.h_feedback,
+            'feedback': self.feedback,
             'endeff_pos': self.endeff_position
         }
         print(f"observations")
@@ -103,11 +80,8 @@ class SortingEnv:
                 s: noisy(self.slot_status[s], s)
                 for s in self.slots
             },
-            'h_command': self.h_command,
-            'h_feedback': noisy(self.h_feedback, 'feedback_command'),
-            'endeff_pos': self.endeff_position,
-            'h_command_memory': noisy(self.h_command_memory, 'h_command_memory'),
-            'metacog_signal': self.metacog_sig
+            'feedback': noisy(self.feedback, 'feedback'),
+            'endeff_pos': self.endeff_position
         }
         print(f"obs: {obs}")
         return obs
@@ -131,35 +105,21 @@ class SortingEnv:
         slot1_idx = _get_index(obs['slot_status']['slot1'], vision_cat)
         slot2_idx = _get_index(obs['slot_status']['slot2'], vision_cat)
         slot3_idx = _get_index(obs['slot_status']['slot3'], vision_cat)
-        h_cmd_idx = _get_index(obs['h_command'], h_cmd_cat)
-        h_fb_idx = _get_index(obs['h_feedback'], voice_fb_cat)
+        h_fb_idx = _get_index(obs['feedback'], voice_fb_cat)
         endeff_pos_idx = _get_index(obs['endeff_pos'], endeff_pos_cat)
-        h_command_memory_idx = _get_index(obs['h_command_memory'], h_cmd_cat)    
-        metacog_idx = _get_index(obs['metacog_signal'], metacog_signal_cat)
 
         return [
             picking_slot_idx,
             slot1_idx,
             slot2_idx,
             slot3_idx,
-            h_cmd_idx,
             h_fb_idx,
-            endeff_pos_idx,
-            h_command_memory_idx,
-            metacog_idx
+            endeff_pos_idx
         ]
-    
-    def get_metacog_signal(self, action, command):
-        if action == command:
-            self.metacog_sig = 'obeyed'
-        else:  
-            self.metacog_sig = 'not_obeyed'
 
     
     def step(self, agent_action):
         # Apply agent action
-        self.get_metacog_signal(agent_action, self.h_command)
-        self.h_command_memory = self.h_command
         """
         if agent_action == 'ideal':
             self.endeff_position = 'ideal'
@@ -185,31 +145,37 @@ class SortingEnv:
             self.h_feedback = 'negative'
             self.obj_placement = False
         """
-        if agent_action == self.h_command:
+        if agent_action == 'ideal':
             self.endeff_position = agent_action
-            self.h_feedback = 'positive'
-            self.slot_status[agent_action] = self.pickup_object
-            self.obj_placement = True
-        else:
-            self.endeff_position = agent_action
-            self.h_feedback = 'negative'
-            if agent_action != 'ideal' and self.slot_status[agent_action] == 'empty':
-                self.slot_status[agent_action] = self.pickup_object
+            self.feedback = 'not_clear'
+            self.obj_placement = False
+
+
+        elif agent_action in self.slot_assignment[self.pickup_object]:
+            if self.slot_status[agent_action] == 'empty':
+                self.endeff_position = agent_action
+                self.feedback = 'positive'
                 self.obj_placement = True
+                self.slot_status[agent_action] = self.pickup_object
             else:
+                self.endeff_position = agent_action
+                self.feedback = 'negative'
                 self.obj_placement = False
 
-        
+        else:
+            self.endeff_position = agent_action
+            self.feedback = 'negative'
+            self.obj_placement = False
+
         # Update next object and human command
         self.pickup_object = self._generate_valid_object()
-        self.h_command = self._generate_human_command()
 
         obs = self._get_observation()
 
         return self._obs_to_index_vector(obs)
     
-"""  
-env = SortingEnv(reliability=100)
+""" 
+env = SortingEnv()
 obs = env.reset()
 
 for t in range(5):
@@ -228,4 +194,4 @@ for t in range(5):
         action = 0
 
     obs = env.step(env.slots[action - 1] if action != 0 else 'ideal')  # map index to string
-"""
+"""  
