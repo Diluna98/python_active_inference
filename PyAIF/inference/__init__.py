@@ -18,8 +18,16 @@ from .shallow import (
     infer_shallow_states,
 )
 from .receding import RecedingHorizonInference
+from .filtered_receding import (
+    FilteredRecedingHorizonInference,
+    FilteredStateInferenceResult,
+    infer_current_states,
+    roll_out_policy_states,
+)
 
 __all__ = [
+    "FilteredRecedingHorizonInference",
+    "FilteredStateInferenceResult",
     "RecedingHorizonInference",
     "DeepPolicyInferenceResult",
     "DeepTemporalInference",
@@ -34,4 +42,6 @@ __all__ = [
     "infer_shallow_policies",
     "infer_shallow_states",
     "infer_deep_temporal_states",
+    "infer_current_states",
+    "roll_out_policy_states",
 ]

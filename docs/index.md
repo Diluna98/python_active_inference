@@ -85,9 +85,11 @@ expected_free_energy, policy_posterior = agent.infer_policies()
 action = agent.select_action()
 ```
 
-Use `DeepTemporalInference(horizon=...)` for a fixed temporal window, or
-`RecedingHorizonInference(horizon=...)` to restore a full planning window after
-every observation and execute its first action. See the
+Use `DeepTemporalInference(horizon=...)` for a fixed temporal window. For a
+fresh planning window after every observation, use `RecedingHorizonInference`
+for policy-conditioned temporal message passing or
+`FilteredRecedingHorizonInference` for current-state filtering followed by
+future policy rollouts. See the
 [public API](public-api.md#receding-horizon-planning-030) and
 [model-shape reference](model-shapes.md) for component contracts and array
 dimensions.

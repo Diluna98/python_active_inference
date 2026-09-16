@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## 0.4.0 - 2026-09-16
+
+### Added
+
+- `FilteredRecedingHorizonInference`, which estimates the current hidden state
+  once per observation and creates policy-conditioned future predictions only
+  during policy evaluation.
+- A runnable filter-then-plan example and regression coverage for categorical,
+  continuous, multi-factor, serial, and parallel-policy configurations.
+
+### Behavior
+
+- The current posterior is independent of the available policy set. Future
+  beliefs cannot send backward messages into that posterior.
+- Policy evaluation retains the existing expected-free-energy terms and rolls
+  the filtered belief forward through each policy's transition sequence.
+- Horizon and action-carry semantics match `RecedingHorizonInference`.
+- Parameter learning remains unavailable for receding-horizon modes while
+  overlapping-window evidence accounting is designed.
+
 ## 0.3.0 - 2026-09-16
 
 ### Added

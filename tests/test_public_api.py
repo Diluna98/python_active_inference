@@ -2,13 +2,15 @@ import PyAIF
 
 
 def test_public_api_exposes_version_and_core_components():
-    assert PyAIF.__version__ == "0.3.0"
+    assert PyAIF.__version__ == "0.4.0"
 
     expected = {
         "ActiveInfAgent",
         "CategoricalLikelihood",
         "ContinuousLikelihood",
         "DeepTemporalInference",
+        "FilteredRecedingHorizonInference",
+        "FilteredStateInferenceResult",
         "RecedingHorizonInference",
         "GenerativeModel",
         "ShallowInference",

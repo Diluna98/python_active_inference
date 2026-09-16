@@ -91,10 +91,12 @@ def object_array(*values):
 
 # A[o, s]: categorical observation likelihood.
 A = object_array(
-    np.array([
-        [0.95, 0.05],
-        [0.05, 0.95],
-    ])
+    np.array(
+        [
+            [0.95, 0.05],
+            [0.05, 0.95],
+        ]
+    )
 )
 
 # B[s_next, s_previous, action]: controlled transitions.
@@ -133,8 +135,11 @@ action = agent.select_action()
 ```
 
 Use `DeepTemporalInference(horizon=...)` for policy-dependent beliefs over a
-fixed temporal window, or `RecedingHorizonInference(horizon=...)` to replan a
-full window after every observation. Deep preferences have shape
+fixed temporal window. For continuous control, choose either
+`RecedingHorizonInference(horizon=...)` for policy-conditioned temporal message
+passing or `FilteredRecedingHorizonInference(horizon=...)` for the conventional
+robotics split: filter the current state once, then predict and score future
+states under each policy. Deep preferences have shape
 `(number_of_outcomes, horizon)`.
 
 ## Continuous observations
@@ -144,7 +149,7 @@ component independently selects the temporal algorithm:
 
 ```python
 likelihood = ContinuousLikelihood(
-    likelihood_fn=density,             # density(value, modality) -> state tensor
+    likelihood_fn=density,  # density(value, modality) -> state tensor
     observation_grids=[rssi_grid],
     log_preferences={0: rssi_log_preferences},
     modality_dependencies=[[0, 1]],
@@ -153,7 +158,7 @@ likelihood = ContinuousLikelihood(
 agent = ActiveInfAgent(
     model=model,
     likelihood=likelihood,
-    inference=ShallowInference(),  # or either deep inference configuration
+    inference=ShallowInference(),  # or a deep/receding inference configuration
 )
 ```
 
@@ -224,11 +229,17 @@ should use the component constructor and lifecycle above.
 - `ShallowInference` performs single-step factorised inference.
 - `DeepTemporalInference` performs marginal message passing over a fixed window.
 - `RecedingHorizonInference` replans a full window at every observation and
-  selects its first action, supporting uninterrupted control. Horizon 3 means
-  the current state plus two future states. See
+  uses policy-conditioned marginal message passing, including backward
+  future-to-present messages.
+- `FilteredRecedingHorizonInference` filters the current state once, then rolls
+  that shared posterior forward under every policy. This estimator/planner
+  separation is usually the more natural default for online robotics. Both
+  receding modes select the first action and support uninterrupted control.
+  Horizon 3 means the current state plus two future states. See
   [the lifecycle and migration notes](docs/public-api.md#receding-horizon-planning-030)
-  and [the runnable example](examples/quickstart_receding.py). Parameter learning
-  is not yet supported in this new mode.
+  and the runnable [temporal-message-passing](examples/quickstart_receding.py)
+  and [filter-then-plan](examples/quickstart_filtered_receding.py) examples.
+  Parameter learning is not yet supported in either receding mode.
 - `PyAIF.learning` contains reusable categorical updates for `A`, `B`, `C`,
   `D`, and `E`.
 
@@ -240,6 +251,9 @@ See [Model shapes](docs/model-shapes.md) and
 - `examples/quickstart_discrete.py`: minimal categorical agent.
 - `examples/quickstart_continuous.py`: minimal Gaussian continuous-observation
   agent.
+- `examples/quickstart_receding.py`: receding-horizon temporal message passing.
+- `examples/quickstart_filtered_receding.py`: robotics-style current-state
+  filtering followed by predictive policy rollout.
 - `examples/learning_under_uncertainty/`: deep temporal parameter-learning
   experiments under epistemic and aleatoric uncertainty.
 
