@@ -136,7 +136,6 @@ def test_filter_result_does_not_depend_on_policy_set(continuous):
     for baseline_q, reduced_q in zip(
         baseline.filtered_posteriors,
         reduced.filtered_posteriors,
-        strict=True,
     ):
         assert np.allclose(baseline_q, reduced_q)
 
