@@ -198,8 +198,13 @@ contains sufficiently large tensor contractions. `ShallowInference` accepts
 the same `policy_workers` option for concurrent policy scoring.
 
 See the reproducible
-[PyAIF–pymdp CPU benchmark](benchmarks/results/2026-07-24-windows-cpu.md)
-for comparisons with classic NumPy pymdp and current JAX pymdp.
+[filtered receding-horizon CPU benchmark](benchmarks/results/2026-09-16-filtered-receding-windows-cpu.md)
+for comparisons among PyAIF temporal modes, classic NumPy pymdp, and current
+JAX pymdp. The [original benchmark](benchmarks/results/2026-07-24-windows-cpu.md)
+is retained for historical comparison. A separate
+[resolution-scaling profile](benchmarks/results/2026-09-16-resolution-scaling.md)
+breaks policy evaluation into rollout, EFE contractions, posterior updating,
+and Bayesian model averaging.
 
 ## Agent lifecycle
 
@@ -233,8 +238,11 @@ should use the component constructor and lifecycle above.
   future-to-present messages.
 - `FilteredRecedingHorizonInference` filters the current state once, then rolls
   that shared posterior forward under every policy. This estimator/planner
-  separation is usually the more natural default for online robotics. Both
-  receding modes select the first action and support uninterrupted control.
+  separation is usually the more natural default for online robotics. It
+  carries the shared current posterior directly and skips policy-averaged
+  future-state diagnostics by default; set `average_future_states=True` when
+  those diagnostics are needed. Both receding modes select the first action
+  and support uninterrupted control.
   Horizon 3 means the current state plus two future states. See
   [the lifecycle and migration notes](docs/public-api.md#receding-horizon-planning-030)
   and the runnable [temporal-message-passing](examples/quickstart_receding.py)

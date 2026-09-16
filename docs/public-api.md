@@ -145,7 +145,10 @@ from PyAIF import ActiveInfAgent, FilteredRecedingHorizonInference
 agent = ActiveInfAgent(
     model=model,
     likelihood=likelihood,
-    inference=FilteredRecedingHorizonInference(horizon=3),
+    inference=FilteredRecedingHorizonInference(
+        horizon=3,
+        average_future_states=False,
+    ),
     action_selection="deterministic",
 ).reset()
 
@@ -165,6 +168,13 @@ through `horizon - 1`. The already-observed present is not scored as a future
 outcome. There are no future-to-present messages.
 Diagnostics are available as `agent.last_state_inference` and
 `agent.last_policy_inference`.
+
+The filtered posterior is carried directly into the next action-conditioned
+prior. Policy-weighted averages of future state trajectories are skipped by
+default because they are not required for policy scoring or first-action
+selection. Set `average_future_states=True` to populate
+`agent.bayesian_mod_avg[1:]` for visualization or diagnostic consumers. The
+current entry, `agent.bayesian_mod_avg[0]`, is always the filtered posterior.
 
 This differs from `RecedingHorizonInference`, where marginal message passing
 jointly updates the complete policy-conditioned trajectory and future beliefs

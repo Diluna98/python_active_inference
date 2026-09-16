@@ -18,6 +18,9 @@
   beliefs cannot send backward messages into that posterior.
 - Policy evaluation retains the existing expected-free-energy terms and rolls
   the filtered belief forward through each policy's transition sequence.
+- The filtered current posterior is carried directly. Policy-weighted future
+  state averages are opt-in through `average_future_states=True`, avoiding
+  unnecessary work in the default online-control path.
 - Horizon and action-carry semantics match `RecedingHorizonInference`.
 - Parameter learning remains unavailable for receding-horizon modes while
   overlapping-window evidence accounting is designed.
