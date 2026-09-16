@@ -134,6 +134,53 @@ overlapping evidence. Existing shallow and fixed-window learning are unchanged.
 
 Run `python examples/quickstart_receding.py` for a complete example.
 
+### Filtered receding-horizon planning (0.4.0)
+
+Use `FilteredRecedingHorizonInference` when the estimator and planner should be
+explicitly separated, as is common in online robotics:
+
+```python
+from PyAIF import ActiveInfAgent, FilteredRecedingHorizonInference
+
+agent = ActiveInfAgent(
+    model=model,
+    likelihood=likelihood,
+    inference=FilteredRecedingHorizonInference(horizon=3),
+    action_selection="deterministic",
+).reset()
+
+for observation in observation_stream:
+    agent.observe(observation)
+    agent.infer_states()  # current state only, once
+    agent.infer_policies()  # future rollouts and EFE scoring
+    action = agent.select_action()
+```
+
+`infer_states()` conditions a single factorized current belief on the newest
+observation and carried transition prior. It is independent of both the number
+and contents of the policy set. `infer_policies()` then places that same belief
+at relative time zero for every policy, predicts later beliefs through `B`, and
+uses the existing expected-free-energy terms to score relative times one
+through `horizon - 1`. The already-observed present is not scored as a future
+outcome. There are no future-to-present messages.
+Diagnostics are available as `agent.last_state_inference` and
+`agent.last_policy_inference`.
+
+This differs from `RecedingHorizonInference`, where marginal message passing
+jointly updates the complete policy-conditioned trajectory and future beliefs
+can influence the inferred present. Choose that mode when planning-as-inference
+semantics are important. Choose the filtered mode for a conventional
+filter-then-plan control loop, clearer estimator diagnostics, and state-update
+cost that does not scale with the number of policies. Future rollout and policy
+scoring still scale with policy count and horizon, so the filtered mode is not
+an unconditional latency guarantee.
+
+Both receding modes use the same horizon convention, first-action execution,
+action-conditioned prior carry-over, categorical/continuous likelihoods, and
+optional parallel policy scoring. The `executed_action` rules and learning
+restriction described above also apply. Run
+`python examples/quickstart_filtered_receding.py` for a complete example.
+
 ### Common lifecycle
 
 - `reset(trial=0)`: normalize parameters and reset transient beliefs.
