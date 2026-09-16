@@ -32,6 +32,17 @@ python benchmarks/compare_pymdp.py \
   --output results.json
 ```
 
+Profile receding MMP and filter-then-plan across hidden-state grid resolutions,
+including an instrumented policy-evaluation breakdown:
+
+```bash
+python benchmarks/profile_resolution.py \
+  --resolutions 4 8 16 32 \
+  --warmups 10 \
+  --repeats 100 \
+  --output resolution-results.json
+```
+
 Timing microbenchmarks are machine- and version-specific. Use a quiet machine,
 the same Python and NumPy versions, and multiple repetitions. Do not compare
 JAX asynchronous dispatch without blocking or mix compilation time into
@@ -39,5 +50,6 @@ steady-state measurements.
 
 Published results:
 
+- [Resolution scaling and policy-cost breakdown (2026-09-16)](results/2026-09-16-resolution-scaling.md)
 - [Filtered receding-horizon profile (2026-09-16)](results/2026-09-16-filtered-receding-windows-cpu.md)
 - [Original PyAIF–pymdp profile (2026-07-24)](results/2026-07-24-windows-cpu.md)

@@ -100,3 +100,7 @@ not retroactively replace the older algorithm's measurement.
 - Results are machine- and model-specific. Continuous likelihoods, larger
   state tensors, different policy counts, and thread settings require separate
   measurements.
+
+See the follow-up
+[resolution-scaling and policy-cost profile](2026-09-16-resolution-scaling.md)
+for 4 × 4 through 32 × 32 hidden-state grids.

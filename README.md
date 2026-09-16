@@ -201,7 +201,10 @@ See the reproducible
 [filtered receding-horizon CPU benchmark](benchmarks/results/2026-09-16-filtered-receding-windows-cpu.md)
 for comparisons among PyAIF temporal modes, classic NumPy pymdp, and current
 JAX pymdp. The [original benchmark](benchmarks/results/2026-07-24-windows-cpu.md)
-is retained for historical comparison.
+is retained for historical comparison. A separate
+[resolution-scaling profile](benchmarks/results/2026-09-16-resolution-scaling.md)
+breaks policy evaluation into rollout, EFE contractions, posterior updating,
+and Bayesian model averaging.
 
 ## Agent lifecycle
 
