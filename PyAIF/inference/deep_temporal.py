@@ -905,7 +905,15 @@ def _infer_deep_continuous_policies(
                 agent.likelihood,
                 state_beliefs,
                 seed_offset=(
-                    (time_step * len(agent.policies) + policy_index)
+                    (
+                        (
+                            agent._current_time
+                            if getattr(agent, "receding_horizon", False)
+                            else time_step
+                        )
+                        * len(agent.policies)
+                        + policy_index
+                    )
                     * agent.temporal_horizon
                     + timestep
                 ),

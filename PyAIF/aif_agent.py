@@ -44,6 +44,13 @@ from PyAIF.learning import (
     learn_deep_categorical,
     learn_shallow_categorical,
 )
+from PyAIF.inference.receding import (
+    RecedingHorizonInference,
+    observe_receding,
+    reset_receding,
+    select_receding_action,
+    validate_agent as validate_receding_agent,
+)
 
 EPS_VAL = 1e-16 # global constant for use in spm_log() function
 
@@ -358,6 +365,13 @@ class ActiveInfAgent:
         model=None, likelihood=None, inference=None,
     ):
         component_values = (model, likelihood, inference)
+        self.receding_horizon = isinstance(inference, RecedingHorizonInference)
+        if self.receding_horizon and any(
+            (learning_A, learning_B, learning_C, learning_D, learning_E)
+        ):
+            raise ValueError(
+                "RecedingHorizonInference does not yet support parameter learning."
+            )
         using_component_api = any(value is not None for value in component_values)
         if using_component_api:
             if not all(value is not None for value in component_values):
@@ -750,15 +764,19 @@ class ActiveInfAgent:
         methods remain available while examples migrate to this lifecycle.
         """
 
+        if self.receding_horizon:
+            validate_receding_agent(self)
         if normalize:
             self.normalize_columns()
         self.initialize_variables()
         self._current_trial = int(trial)
         self._current_time = 0
         self._pending_observation = None
+        if self.receding_horizon:
+            reset_receding(self)
         return self
 
-    def observe(self, observation, time_step=None):
+    def observe(self, observation, time_step=None, *, executed_action=None):
         """Record one multimodal observation for the current time step."""
 
         observation = np.asarray(observation)
@@ -768,6 +786,11 @@ class ActiveInfAgent:
                 f"received shape {observation.shape}."
             )
 
+        if self.receding_horizon:
+            observe_receding(self, observation, time_step, executed_action)
+            return self
+        if executed_action is not None:
+            raise ValueError("executed_action requires RecedingHorizonInference.")
         if time_step is not None:
             self._current_time = int(time_step)
 
@@ -779,6 +802,8 @@ class ActiveInfAgent:
     def select_action(self):
         """Select an action using the current policy posterior."""
 
+        if self.receding_horizon:
+            return select_receding_action(self)
         action, _ = self.choose_action(self._current_trial, self._current_time)
         self._current_time += 1
         return action
@@ -960,6 +985,8 @@ class ActiveInfAgent:
             and trial/epoch is not finnished. This function should call at the begining of each time step
             in the main loop of the experiment.
         """
+        if self.receding_horizon:
+            return
         if self.deep_inference:
             if t%self.temporal_horizon == self.temporal_horizon-1:
                 self.planning_from = t + 1 
@@ -992,6 +1019,13 @@ class ActiveInfAgent:
         plt.pause(0.01)
     
     def infer_states(self, trial=None, t=None, res_idx=None, obs=None, dF_tol=None):
+        if self.receding_horizon:
+            if obs is not None or res_idx is not None or dF_tol is not None:
+                raise ValueError("Use observe() and the inference configuration for receding inference.")
+            if t is not None and t != self._current_time:
+                raise ValueError("t must match the current receding decision index.")
+            self.last_state_inference = self.inference.infer_states(self, self._current_time)
+            return
         if trial is None:
             trial = getattr(self, "_current_trial", 0)
         if t is None:
@@ -1289,7 +1323,11 @@ class ActiveInfAgent:
         if t is None:
             t = getattr(self, "_current_time", 0)
 
-        if self.deep_inference:
+        if self.receding_horizon:
+            if t != self._current_time:
+                raise ValueError("t must match the current receding decision index.")
+            self.last_policy_inference = self.inference.infer_policies(self, trial, t)
+        elif self.deep_inference:
             self.last_policy_inference = infer_deep_temporal_policies(
                 self,
                 trial,

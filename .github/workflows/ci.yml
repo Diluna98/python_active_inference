@@ -35,6 +35,7 @@ jobs:
         run: |
           python examples/quickstart_discrete.py
           python examples/quickstart_continuous.py
+          python examples/quickstart_receding.py
 
   package:
     name: Build distributions
@@ -57,7 +58,7 @@ jobs:
           python -m venv /tmp/pyaif-smoke
           /tmp/pyaif-smoke/bin/python -m pip install dist/*.whl
           cd /tmp
-          /tmp/pyaif-smoke/bin/python -c "import importlib.metadata; import PyAIF; assert importlib.metadata.version('pyaif-toolkit') == PyAIF.__version__ == '0.2.0'"
+          /tmp/pyaif-smoke/bin/python -c "import importlib.metadata; import PyAIF; assert importlib.metadata.version('pyaif-toolkit') == PyAIF.__version__ == '0.3.0'"
       - name: Verify wheel contents
         run: |
           python - <<'PY'
@@ -69,6 +70,7 @@ jobs:
           names = zipfile.ZipFile(wheel).namelist()
           assert "PyAIF/inference/continuous.py" in names
           assert "PyAIF/inference/deep_temporal.py" in names
+          assert "PyAIF/inference/receding.py" in names
           assert "PyAIF/likelihoods/continuous.py" in names
           assert "PyAIF/learning/categorical.py" in names
           assert any(name.endswith("licenses/LICENSE") for name in names)
@@ -78,6 +80,10 @@ jobs:
           source_names = tarfile.open(source).getnames()
           assert any(
               name.endswith("examples/quickstart_continuous.py")
+              for name in source_names
+          )
+          assert any(
+              name.endswith("examples/quickstart_receding.py")
               for name in source_names
           )
           assert any(

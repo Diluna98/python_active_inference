@@ -17,8 +17,10 @@ from .shallow import (
     infer_shallow_policies,
     infer_shallow_states,
 )
+from .receding import RecedingHorizonInference
 
 __all__ = [
+    "RecedingHorizonInference",
     "DeepPolicyInferenceResult",
     "DeepTemporalInference",
     "DeepStateInferenceResult",
