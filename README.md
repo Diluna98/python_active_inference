@@ -132,8 +132,9 @@ expected_free_energy, _ = agent.infer_policies()
 action = agent.select_action()
 ```
 
-Use `DeepTemporalInference(horizon=...)` for policy-dependent beliefs over
-multiple time steps. Deep preferences have shape
+Use `DeepTemporalInference(horizon=...)` for policy-dependent beliefs over a
+fixed temporal window, or `RecedingHorizonInference(horizon=...)` to replan a
+full window after every observation. Deep preferences have shape
 `(number_of_outcomes, horizon)`.
 
 ## Continuous observations
@@ -152,7 +153,7 @@ likelihood = ContinuousLikelihood(
 agent = ActiveInfAgent(
     model=model,
     likelihood=likelihood,
-    inference=ShallowInference(),      # or DeepTemporalInference(...)
+    inference=ShallowInference(),  # or either deep inference configuration
 )
 ```
 
@@ -221,7 +222,13 @@ should use the component constructor and lifecycle above.
 - `ContinuousLikelihood` owns density evaluation, observation grids, log
   preferences, dependencies, and optional domain learning hooks.
 - `ShallowInference` performs single-step factorised inference.
-- `DeepTemporalInference` performs marginal message passing over a horizon.
+- `DeepTemporalInference` performs marginal message passing over a fixed window.
+- `RecedingHorizonInference` replans a full window at every observation and
+  selects its first action, supporting uninterrupted control. Horizon 3 means
+  the current state plus two future states. See
+  [the lifecycle and migration notes](docs/public-api.md#receding-horizon-planning-030)
+  and [the runnable example](examples/quickstart_receding.py). Parameter learning
+  is not yet supported in this new mode.
 - `PyAIF.learning` contains reusable categorical updates for `A`, `B`, `C`,
   `D`, and `E`.
 

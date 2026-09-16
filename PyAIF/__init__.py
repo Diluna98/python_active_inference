@@ -7,6 +7,7 @@ from .inference import (
     DeepPolicyInferenceResult,
     DeepStateInferenceResult,
     DeepTemporalInference,
+    RecedingHorizonInference,
     ShallowInference,
     ShallowPolicyInferenceResult,
     ShallowStateInferenceResult,
@@ -22,9 +23,10 @@ from .learning import (
     update_dirichlet_parameters,
 )
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
+    "RecedingHorizonInference",
     "__version__",
     "ActiveInfAgent",
     "CategoricalLikelihood",

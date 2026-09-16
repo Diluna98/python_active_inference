@@ -85,8 +85,10 @@ expected_free_energy, policy_posterior = agent.infer_policies()
 action = agent.select_action()
 ```
 
-Use `DeepTemporalInference(horizon=...)` for policy-dependent beliefs across
-multiple time steps. See the [public API](public-api.md) and
+Use `DeepTemporalInference(horizon=...)` for a fixed temporal window, or
+`RecedingHorizonInference(horizon=...)` to restore a full planning window after
+every observation and execute its first action. See the
+[public API](public-api.md#receding-horizon-planning-030) and
 [model-shape reference](model-shapes.md) for component contracts and array
 dimensions.
 

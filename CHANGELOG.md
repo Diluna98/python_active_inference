@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## 0.3.0 - 2026-09-16
+
+### Added
+
+- `RecedingHorizonInference`: reuse deep marginal message passing with a full
+  relative planning window on every observation and select its first action.
+- Action-conditioned belief carry-over and `observe(..., executed_action=...)`
+  for controllers that override the selected action.
+- Categorical and continuous observation support, absolute-time Monte Carlo
+  seeds, parallel policy evaluation, lifecycle validation, and a runnable example.
+
+### Compatibility
+
+- `DeepTemporalInference` retains its existing fixed-window behavior.
+- Horizon continues to count state time points: horizon 3 contains two actions.
+- The new mode currently rejects parameter learning flags. Overlapping-window
+  learning requires a separate evidence-accounting design.
+- This is a planning lifecycle addition, not a performance optimization. Full
+  lookahead is evaluated every cycle; latency can exceed fixed-window planning.
+
 ## 0.2.0 - 2026-07-24
 
 ### Added
