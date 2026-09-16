@@ -198,8 +198,10 @@ contains sufficiently large tensor contractions. `ShallowInference` accepts
 the same `policy_workers` option for concurrent policy scoring.
 
 See the reproducible
-[PyAIF–pymdp CPU benchmark](benchmarks/results/2026-07-24-windows-cpu.md)
-for comparisons with classic NumPy pymdp and current JAX pymdp.
+[filtered receding-horizon CPU benchmark](benchmarks/results/2026-09-16-filtered-receding-windows-cpu.md)
+for comparisons among PyAIF temporal modes, classic NumPy pymdp, and current
+JAX pymdp. The [original benchmark](benchmarks/results/2026-07-24-windows-cpu.md)
+is retained for historical comparison.
 
 ## Agent lifecycle
 

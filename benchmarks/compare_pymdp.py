@@ -25,8 +25,11 @@ from PyAIF import (
     ActiveInfAgent,
     CategoricalLikelihood,
     DeepTemporalInference,
+    FilteredRecedingHorizonInference,
     GenerativeModel,
+    RecedingHorizonInference,
     ShallowInference,
+    __version__ as pyaif_version,
 )
 
 
@@ -121,15 +124,24 @@ def benchmark(
     return summarize(samples), result
 
 
-def create_pyaif(scenario: Scenario):
+def create_pyaif(scenario: Scenario, temporal_mode: str = "fixed-window"):
     likelihood, transitions, priors, preferences = model_arrays(scenario)
     if scenario.deep:
-        inference = DeepTemporalInference(
+        inference_types = {
+            "fixed-window": DeepTemporalInference,
+            "receding-mmp": RecedingHorizonInference,
+            "filtered-receding": FilteredRecedingHorizonInference,
+        }
+        if temporal_mode not in inference_types:
+            raise ValueError(f"Unknown PyAIF temporal mode: {temporal_mode}")
+        inference = inference_types[temporal_mode](
             horizon=scenario.horizon,
             message_passing_iterations=scenario.iterations,
         )
         preference_array = np.zeros((scenario.states, scenario.horizon))
     else:
+        if temporal_mode != "shallow":
+            raise ValueError("Shallow scenarios require temporal_mode='shallow'.")
         inference = ShallowInference(
             message_passing_iterations=scenario.iterations,
         )
@@ -155,8 +167,13 @@ def create_pyaif(scenario: Scenario):
     return agent
 
 
-def benchmark_pyaif(scenario: Scenario, warmups: int, repeats: int):
-    agent = create_pyaif(scenario)
+def benchmark_pyaif(
+    scenario: Scenario,
+    warmups: int,
+    repeats: int,
+    temporal_mode: str,
+):
+    agent = create_pyaif(scenario, temporal_mode)
 
     def prepare_state():
         agent.reset()
@@ -170,12 +187,14 @@ def benchmark_pyaif(scenario: Scenario, warmups: int, repeats: int):
         repeats=repeats,
     )
 
-    prepare_state()
-    agent.infer_states()
+    def prepare_policy():
+        prepare_state()
+        agent.infer_states()
+
     policy_stats, _ = benchmark(
         agent.infer_policies,
         lambda _: None,
-        prepare=None,
+        prepare=prepare_policy,
         warmups=warmups,
         repeats=repeats,
     )
@@ -202,7 +221,7 @@ def benchmark_pyaif(scenario: Scenario, warmups: int, repeats: int):
         state_iterations = agent.last_state_inference.iterations
 
     return {
-        "implementation": "PyAIF",
+        "implementation": f"PyAIF-{temporal_mode}",
         "num_policies": agent.num_policies,
         "state": state_stats,
         "policy": policy_stats,
@@ -458,7 +477,7 @@ def main():
             "platform": platform.platform(),
             "processor": platform.processor(),
             "numpy": np.__version__,
-            "pyaif": importlib.metadata.version("pyaif-toolkit"),
+            "pyaif": pyaif_version,
             "pyaif_git_commit": git_commit,
             "pymdp": pymdp_version,
             "jax_enable_x64": jax_x64,
@@ -469,11 +488,23 @@ def main():
     }
 
     for scenario in SCENARIOS:
-        pyaif_result, pyaif_agent = benchmark_pyaif(
-            scenario,
-            args.warmups,
-            args.repeats,
+        temporal_modes = (
+            ("fixed-window", "receding-mmp", "filtered-receding")
+            if scenario.deep
+            else ("shallow",)
         )
+        pyaif_results = []
+        pyaif_reference_agent = None
+        for temporal_mode in temporal_modes:
+            pyaif_result, pyaif_agent = benchmark_pyaif(
+                scenario,
+                args.warmups,
+                args.repeats,
+                temporal_mode,
+            )
+            pyaif_results.append(pyaif_result)
+            if pyaif_reference_agent is None:
+                pyaif_reference_agent = pyaif_agent
         if pymdp_major >= 1:
             pymdp_result, pymdp_posterior = benchmark_pymdp_jax(
                 scenario,
@@ -494,8 +525,9 @@ def main():
             pymdp_major,
         )
         if reference_vectors is not None:
+            assert pyaif_reference_agent is not None
             differences = [
-                np.max(np.abs(pyaif_agent.posteriors[index] - reference))
+                np.max(np.abs(pyaif_reference_agent.posteriors[index] - reference))
                 for index, reference in enumerate(reference_vectors)
             ]
             validation = {"max_state_posterior_abs_difference": float(max(differences))}
@@ -504,7 +536,7 @@ def main():
             {
                 "scenario": scenario.__dict__,
                 "validation": validation,
-                "results": [pyaif_result, pymdp_result],
+                "results": [*pyaif_results, pymdp_result],
             }
         )
 
