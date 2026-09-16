@@ -6,7 +6,9 @@ Python: 3.12.14
 NumPy: 2.5.1  
 Platform: Windows 11, Intel64 Family 6 Model 191  
 Protocol: 10 warm-ups and 100 measured repetitions; median wall time;
-single process; CPU execution.
+single process; CPU execution. Algorithms and measurement stages were
+interleaved and their order rotated on every repetition to reduce bias from
+background load and CPU-frequency changes.
 
 ## Controlled resolution sweep
 
@@ -38,14 +40,14 @@ All values are median milliseconds.
 
 | Resolution | Grid cells | MMP state | MMP policy | MMP full | Filtered state | Filtered policy | Filtered full | Full-step speed-up |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 4 × 4 | 16 | 2.856 | 1.233 | 4.144 | 0.671 | 1.789 | 2.508 | 1.65× |
-| 8 × 8 | 64 | 3.411 | 1.379 | 4.819 | 0.884 | 1.923 | 2.802 | 1.72× |
-| 16 × 16 | 256 | 4.414 | 1.816 | 6.252 | 0.911 | 2.270 | 3.201 | 1.95× |
-| 32 × 32 | 1,024 | 8.016 | 3.482 | 11.488 | 1.057 | 3.473 | 4.525 | 2.54× |
+| 4 × 4 | 16 | 7.238 | 1.812 | 9.028 | 1.748 | 3.389 | 5.126 | 1.76× |
+| 8 × 8 | 64 | 8.716 | 2.037 | 10.722 | 2.319 | 3.628 | 6.029 | 1.78× |
+| 16 × 16 | 256 | 10.851 | 2.983 | 14.293 | 2.484 | 4.461 | 7.017 | 2.04× |
+| 32 × 32 | 1,024 | 17.468 | 6.333 | 23.953 | 2.776 | 6.989 | 9.791 | 2.45× |
 
-The full-step latency reduction grows from 39.5% at 4 × 4 to 60.6% at
+The full-step latency reduction grows from 43.2% at 4 × 4 to 59.1% at
 32 × 32. At the largest tested grid, policy-independent current-state
-filtering is 7.58× faster than policy-conditioned MMP state inference.
+filtering is 6.29× faster than policy-conditioned MMP state inference.
 
 ## Filtered policy-evaluation breakdown
 
@@ -58,29 +60,31 @@ with a synthetic calculation. Components are:
   contractions.
 - **Information dispatch:** policy information-gain callback dispatch. All
   learning flags are disabled here, so the numerical information gain is zero.
-- **Posterior update:** policy precision/softmax update plus Bayesian model
-  averaging. The model-average portion is shown in parentheses.
+- **Posterior update:** policy precision/softmax update. Policy-weighted future
+  state averaging is now skipped in the default online-control path; its
+  measured column is retained to make that zero cost explicit.
 - **Bookkeeping:** storing diagnostics and expected observations, function
   dispatch, and profiler residual.
 
-| Resolution | Rollout | EFE terms | Information dispatch | Posterior update (model average) | Bookkeeping | Policy total |
-|---:|---:|---:|---:|---:|---:|---:|
-| 4 × 4 | 0.753 | 0.339 | 0.006 | 0.567 (0.480) | 0.123 | 1.789 |
-| 8 × 8 | 0.769 | 0.435 | 0.006 | 0.581 (0.490) | 0.128 | 1.923 |
-| 16 × 16 | 0.819 | 0.722 | 0.007 | 0.587 (0.494) | 0.132 | 2.270 |
-| 32 × 32 | 0.909 | 1.798 | 0.007 | 0.610 (0.513) | 0.139 | 3.473 |
+| Resolution | Rollout | EFE terms | Information dispatch | Posterior update | Future-state average | Bookkeeping | Policy total |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 4 × 4 | 2.278 | 0.658 | 0.011 | 0.190 | 0.000 | 0.246 | 3.389 |
+| 8 × 8 | 2.347 | 0.813 | 0.012 | 0.194 | 0.000 | 0.260 | 3.628 |
+| 16 × 16 | 2.509 | 1.448 | 0.012 | 0.199 | 0.000 | 0.264 | 4.461 |
+| 32 × 32 | 2.784 | 3.590 | 0.012 | 0.204 | 0.000 | 0.274 | 6.989 |
 
-At 4 × 4, rollout is 42.1% of filtered policy time and EFE contractions are
-19.0%. At 32 × 32, rollout falls to 26.2% of the total while EFE contractions
-rise to 51.8%. The rollout still becomes slower, but its Python loop and
+At 4 × 4, rollout is 67.2% of filtered policy time and EFE contractions are
+19.4%. At 32 × 32, rollout falls to 39.8% of the total while EFE contractions
+rise to 51.4%. The rollout still becomes slower, but its Python loop and
 object-array overhead dominate these relatively small dense matrix-vector
 products. EFE contractions respond more strongly to the growing joint-state
 tensor and become the main resolution-sensitive policy cost.
 
-Bayesian model averaging is most of the posterior-update cost. It changes only
-slightly over this range because policy count, horizon, and factor count remain
-fixed and the state vectors are still small enough for fixed overhead to
-dominate.
+The filtered current posterior is copied directly into the carried current
+belief. Future policy-weighted state averages are not required for policy
+scoring or first-action selection, so their default cost is zero. They remain
+available with `average_future_states=True` for trajectory visualization and
+diagnostics.
 
 ## Receding-MMP policy breakdown
 
@@ -89,18 +93,17 @@ its policy stage has no separate rollout component.
 
 | Resolution | EFE terms | Information dispatch | Posterior update (model average) | Bookkeeping | Policy total |
 |---:|---:|---:|---:|---:|---:|
-| 4 × 4 | 0.501 | 0.006 | 0.573 (0.482) | 0.152 | 1.233 |
-| 8 × 8 | 0.630 | 0.006 | 0.583 (0.490) | 0.154 | 1.379 |
-| 16 × 16 | 1.056 | 0.006 | 0.595 (0.499) | 0.159 | 1.816 |
-| 32 × 32 | 2.698 | 0.007 | 0.611 (0.513) | 0.165 | 3.482 |
+| 4 × 4 | 0.970 | 0.011 | 0.518 (0.319) | 0.297 | 1.812 |
+| 8 × 8 | 1.191 | 0.012 | 0.524 (0.323) | 0.307 | 2.037 |
+| 16 × 16 | 2.128 | 0.012 | 0.532 (0.327) | 0.308 | 2.983 |
+| 32 × 32 | 5.424 | 0.012 | 0.547 (0.339) | 0.314 | 6.333 |
 
 MMP scores the current time point plus two future points, whereas filtered
 receding inference scores only the two genuinely future points. At low
 resolution, avoiding one EFE time point does not compensate for the explicit
-rollout cost, so the filtered policy stage is 45.2% slower. As resolution
-increases, the avoided tensor contraction becomes more expensive. At 32 × 32,
-the two complete policy stages are effectively equal: filtered is 0.27% faster
-in this run.
+rollout cost, so the filtered policy stage is slower. As resolution increases,
+the avoided tensor contraction becomes more expensive: the policy-stage gap
+narrows from 87.0% at 4 × 4 to 10.4% at 32 × 32.
 
 ## Conclusions
 
@@ -109,8 +112,9 @@ in this run.
 - Policy rollout explains the low-resolution policy-stage penalty.
 - EFE risk/ambiguity contractions, not rollout, become the dominant
   resolution-sensitive policy cost.
-- The largest remaining nearly fixed policy cost is Bayesian model averaging,
-  suggesting a useful target for vectorization independent of resolution.
+- Redundant future-state averaging has been removed from the default filtered
+  control path without changing expected free energy, policy probabilities, or
+  the selected action.
 - These results isolate categorical hidden-state resolution. They do not yet
   measure continuous sensor integration, changing observation-grid resolution,
   sparse transitions, or application-specific source-localization likelihoods.

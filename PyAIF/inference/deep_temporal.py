@@ -2,7 +2,7 @@
 
 import copy
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 
@@ -885,6 +885,7 @@ def _infer_deep_continuous_policies(
     trial: int,
     time_step: int,
     policy_workers: int,
+    state_average_start: Optional[int],
 ) -> DeepPolicyInferenceResult:
     """Evaluate deep policies using a continuous likelihood component."""
 
@@ -964,7 +965,11 @@ def _infer_deep_continuous_policies(
                     timestep,
                 ][modality] = prediction
 
-    agent.update_policy_posterior(trial, time_step)
+    agent.update_policy_posterior(
+        trial,
+        time_step,
+        state_average_start=state_average_start,
+    )
     return DeepPolicyInferenceResult(
         expected_free_energy=copy.deepcopy(agent.G_policy),
         variational_free_energy=copy.deepcopy(agent.F_policy),
@@ -981,6 +986,7 @@ def infer_deep_temporal_policies(
     time_step: int,
     *,
     policy_workers: int = 1,
+    state_average_start: Optional[int] = 0,
 ) -> DeepPolicyInferenceResult:
     """Evaluate deep policies and update their posterior."""
     if agent.continous_obs:
@@ -989,6 +995,7 @@ def infer_deep_temporal_policies(
             trial,
             time_step,
             policy_workers,
+            state_average_start,
         )
 
     if len(agent.policies) >= 4:
@@ -1035,7 +1042,11 @@ def infer_deep_temporal_policies(
         agent.risk = policy_risk.tolist()
         agent.ambiguity = policy_ambiguity.tolist()
         agent.info_gain = policy_information_gain.tolist()
-        agent.update_policy_posterior(trial, time_step)
+        agent.update_policy_posterior(
+            trial,
+            time_step,
+            state_average_start=state_average_start,
+        )
         return DeepPolicyInferenceResult(
             expected_free_energy=copy.deepcopy(agent.G_policy),
             variational_free_energy=copy.deepcopy(agent.F_policy),
@@ -1102,7 +1113,11 @@ def infer_deep_temporal_policies(
                         timestep,
                     ][modality] = prediction
 
-        agent.update_policy_posterior(trial, time_step)
+        agent.update_policy_posterior(
+            trial,
+            time_step,
+            state_average_start=state_average_start,
+        )
         return DeepPolicyInferenceResult(
             expected_free_energy=copy.deepcopy(agent.G_policy),
             variational_free_energy=copy.deepcopy(agent.F_policy),
@@ -1164,7 +1179,11 @@ def infer_deep_temporal_policies(
             information_gain,
         )
 
-    agent.update_policy_posterior(trial, time_step)
+    agent.update_policy_posterior(
+        trial,
+        time_step,
+        state_average_start=state_average_start,
+    )
 
     return DeepPolicyInferenceResult(
         expected_free_energy=copy.deepcopy(agent.G_policy),

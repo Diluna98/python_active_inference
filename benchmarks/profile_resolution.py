@@ -93,30 +93,6 @@ def summarize(samples_ns: list[int]) -> dict[str, float]:
     }
 
 
-def measure(
-    function: Callable[[], Any],
-    prepare: Callable[[], None],
-    *,
-    warmups: int,
-    repeats: int,
-) -> dict[str, float]:
-    for _ in range(warmups):
-        prepare()
-        function()
-
-    samples = []
-    gc.disable()
-    try:
-        for _ in range(repeats):
-            prepare()
-            start = time.perf_counter_ns()
-            function()
-            samples.append(time.perf_counter_ns() - start)
-    finally:
-        gc.enable()
-    return summarize(samples)
-
-
 class PolicyTimingHooks:
     """Instrument named operations without changing the policy implementation."""
 
@@ -159,101 +135,112 @@ class PolicyTimingHooks:
         self.elapsed_ns.clear()
 
 
-def profile_policy(
-    agent: ActiveInfAgent,
+def profile_modes(
+    resolution: int,
     *,
     warmups: int,
     repeats: int,
-) -> dict[str, dict[str, float]]:
-    def prepare():
-        agent.reset()
-        agent.observe([0])
-        agent.infer_states()
-
-    component_samples: dict[str, list[int]] = defaultdict(list)
-    with PolicyTimingHooks() as hooks:
-        for _ in range(warmups):
-            prepare()
-            agent.infer_policies()
-
-        gc.disable()
-        try:
-            for _ in range(repeats):
-                prepare()
-                hooks.reset()
-                start = time.perf_counter_ns()
-                agent.infer_policies()
-                total = time.perf_counter_ns() - start
-
-                rollout = hooks.elapsed_ns.get("rollout", 0)
-                efe_terms = hooks.elapsed_ns.get("efe_terms", 0)
-                information_gain = hooks.elapsed_ns.get(
-                    "information_gain_dispatch",
-                    0,
-                )
-                posterior_update = hooks.elapsed_ns.get("posterior_update", 0)
-                modal_average = hooks.elapsed_ns.get("modal_average", 0)
-                accounted = rollout + efe_terms + information_gain + posterior_update
-
-                component_samples["total"].append(total)
-                component_samples["rollout"].append(rollout)
-                component_samples["efe_terms"].append(efe_terms)
-                component_samples["information_gain_dispatch"].append(information_gain)
-                component_samples["posterior_update"].append(posterior_update)
-                component_samples["modal_average"].append(modal_average)
-                component_samples["posterior_update_other"].append(
-                    posterior_update - modal_average
-                )
-                component_samples["bookkeeping_and_overhead"].append(
-                    max(0, total - accounted)
-                )
-        finally:
-            gc.enable()
-
-    return {
-        component: summarize(samples)
-        for component, samples in component_samples.items()
+) -> list[dict[str, Any]]:
+    mode_names = ("receding-mmp", "filtered-receding")
+    agents = {mode: create_agent(resolution, mode) for mode in mode_names}
+    samples = {
+        mode: {
+            "state": [],
+            "full": [],
+            "policy": defaultdict(list),
+        }
+        for mode in mode_names
     }
 
-
-def profile_mode(
-    resolution: int,
-    mode: str,
-    *,
-    warmups: int,
-    repeats: int,
-) -> dict[str, Any]:
-    agent = create_agent(resolution, mode)
-
-    def prepare_observation():
+    def prepare_observation(agent: ActiveInfAgent) -> None:
         agent.reset()
         agent.observe([0])
 
-    state = measure(
-        agent.infer_states,
-        prepare_observation,
-        warmups=warmups,
-        repeats=repeats,
-    )
-    policy = profile_policy(agent, warmups=warmups, repeats=repeats)
+    def run_state(mode: str) -> None:
+        agent = agents[mode]
+        prepare_observation(agent)
+        start = time.perf_counter_ns()
+        agent.infer_states()
+        samples[mode]["state"].append(time.perf_counter_ns() - start)
 
-    def full_step():
+    def run_policy(mode: str, hooks: PolicyTimingHooks) -> None:
+        agent = agents[mode]
+        prepare_observation(agent)
+        agent.infer_states()
+        hooks.reset()
+        start = time.perf_counter_ns()
+        agent.infer_policies()
+        total = time.perf_counter_ns() - start
+
+        rollout = hooks.elapsed_ns.get("rollout", 0)
+        efe_terms = hooks.elapsed_ns.get("efe_terms", 0)
+        information_gain = hooks.elapsed_ns.get("information_gain_dispatch", 0)
+        posterior_update = hooks.elapsed_ns.get("posterior_update", 0)
+        modal_average = hooks.elapsed_ns.get("modal_average", 0)
+        accounted = rollout + efe_terms + information_gain + posterior_update
+        component_samples = samples[mode]["policy"]
+        component_samples["total"].append(total)
+        component_samples["rollout"].append(rollout)
+        component_samples["efe_terms"].append(efe_terms)
+        component_samples["information_gain_dispatch"].append(information_gain)
+        component_samples["posterior_update"].append(posterior_update)
+        component_samples["modal_average"].append(modal_average)
+        component_samples["posterior_update_other"].append(
+            posterior_update - modal_average
+        )
+        component_samples["bookkeeping_and_overhead"].append(max(0, total - accounted))
+
+    def run_full(mode: str) -> None:
+        agent = agents[mode]
+        prepare_observation(agent)
+        start = time.perf_counter_ns()
         agent.infer_states()
         agent.infer_policies()
+        samples[mode]["full"].append(time.perf_counter_ns() - start)
 
-    full = measure(
-        full_step,
-        prepare_observation,
-        warmups=warmups,
-        repeats=repeats,
-    )
-    return {
-        "mode": mode,
-        "num_policies": agent.num_policies,
-        "state": state,
-        "policy": policy,
-        "full": full,
-    }
+    # Interleave both algorithms and all three measurements, then rotate their
+    # order. This limits bias from CPU frequency changes and background load.
+    with PolicyTimingHooks() as hooks:
+        for index in range(warmups + repeats):
+            operations = tuple(
+                operation
+                for mode in mode_names
+                for operation in (
+                    lambda mode=mode: run_state(mode),
+                    lambda mode=mode: run_policy(mode, hooks),
+                    lambda mode=mode: run_full(mode),
+                )
+            )
+            offset = index % len(operations)
+            rotated = operations[offset:] + operations[:offset]
+            if index < warmups:
+                for operation in rotated:
+                    operation()
+                for mode_samples in samples.values():
+                    mode_samples["state"].clear()
+                    mode_samples["full"].clear()
+                    mode_samples["policy"].clear()
+                continue
+            gc.disable()
+            try:
+                for operation in rotated:
+                    operation()
+            finally:
+                gc.enable()
+
+    return [
+        {
+            "mode": mode,
+            "num_policies": agents[mode].num_policies,
+            "state": summarize(samples[mode]["state"]),
+            "policy": {
+                component: summarize(component_values)
+                for component, component_values in samples[mode]["policy"].items()
+            },
+            "full": summarize(samples[mode]["full"]),
+        }
+        for mode in mode_names
+    ]
 
 
 def main() -> None:
@@ -298,15 +285,11 @@ def main() -> None:
         "resolutions": [],
     }
     for resolution in args.resolutions:
-        modes = [
-            profile_mode(
-                resolution,
-                mode,
-                warmups=args.warmups,
-                repeats=args.repeats,
-            )
-            for mode in ("receding-mmp", "filtered-receding")
-        ]
+        modes = profile_modes(
+            resolution,
+            warmups=args.warmups,
+            repeats=args.repeats,
+        )
         results["resolutions"].append(
             {
                 "states_per_spatial_factor": resolution,

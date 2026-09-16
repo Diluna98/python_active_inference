@@ -35,6 +35,13 @@ class FilteredRecedingHorizonInference(RecedingHorizonInference):
     the current posterior.
     """
 
+    average_future_states: bool = False
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not isinstance(self.average_future_states, bool):
+            raise ValueError("average_future_states must be a boolean.")
+
     def infer_states(self, agent: Any, time_step: int) -> FilteredStateInferenceResult:
         require_stage(agent, "observed")
         result = infer_current_states(
@@ -60,11 +67,14 @@ class FilteredRecedingHorizonInference(RecedingHorizonInference):
         # Relative time zero is the already-observed present and is identical
         # under every policy. Expected free energy therefore starts at the
         # first predicted state after an action.
+        for factor, posterior in enumerate(agent.filtered_posteriors):
+            agent.bayesian_mod_avg[0, factor] = posterior.copy()
         result = infer_deep_temporal_policies(
             agent,
             trial,
             1,
             policy_workers=self.policy_workers,
+            state_average_start=1 if self.average_future_states else None,
         )
         agent._receding_stage = "policies"
         return result

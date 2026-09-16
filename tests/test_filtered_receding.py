@@ -16,11 +16,18 @@ from PyAIF import (
 from test_component_api import continuous_likelihood, make_components, object_array
 
 
-def make_agent(*, continuous=False, horizon=3, workers=1):
+def make_agent(
+    *,
+    continuous=False,
+    horizon=3,
+    workers=1,
+    average_future_states=False,
+):
     inference = FilteredRecedingHorizonInference(
         horizon=horizon,
         message_passing_iterations=10,
         policy_workers=workers,
+        average_future_states=average_future_states,
     )
     model, likelihood = make_components(inference)
     if continuous:
@@ -199,3 +206,56 @@ def test_parallel_policy_scoring_matches_serial(continuous):
     parallel = run(2)
     assert np.allclose(serial[0], parallel[0])
     assert np.allclose(serial[1], parallel[1])
+
+
+@pytest.mark.parametrize("continuous", [False, True])
+def test_default_reuses_current_filter_without_future_model_average(continuous):
+    agent = make_agent(continuous=continuous)
+    observation = [-1.0] if continuous else [0]
+    agent.observe(observation)
+    agent.infer_states()
+    current = [posterior.copy() for posterior in agent.filtered_posteriors]
+    agent.infer_policies()
+
+    for factor, posterior in enumerate(current):
+        assert np.allclose(agent.bayesian_mod_avg[0, factor], posterior)
+        for timestep in range(1, agent.temporal_horizon):
+            assert np.allclose(agent.bayesian_mod_avg[timestep, factor], 0.0)
+
+    agent.select_action()
+    for carried, posterior in zip(agent._receding_posterior, current):
+        assert np.allclose(carried, posterior)
+
+
+def test_future_model_average_is_available_as_opt_in_diagnostic():
+    agent = make_agent(average_future_states=True)
+    agent.observe([0])
+    agent.infer_states()
+    current = [posterior.copy() for posterior in agent.filtered_posteriors]
+    agent.infer_policies()
+
+    for factor, posterior in enumerate(current):
+        assert np.allclose(agent.bayesian_mod_avg[0, factor], posterior)
+        for timestep in range(1, agent.temporal_horizon):
+            stacked = np.vstack(agent.policy_dep_posteriors[:, timestep, factor])
+            expected = stacked.T @ np.asarray(agent.posterior_pi, dtype=float)
+            assert np.allclose(agent.bayesian_mod_avg[timestep, factor], expected)
+
+
+def test_future_model_average_option_does_not_change_policy_selection():
+    def evaluate(average_future_states):
+        agent = make_agent(average_future_states=average_future_states)
+        agent.observe([0])
+        agent.infer_states()
+        agent.infer_policies()
+        return (
+            np.asarray(agent.G_policy, dtype=float),
+            np.asarray(agent.posterior_pi, dtype=float),
+            agent.select_action(),
+        )
+
+    without_average = evaluate(False)
+    with_average = evaluate(True)
+    assert np.allclose(without_average[0], with_average[0])
+    assert np.allclose(without_average[1], with_average[1])
+    assert np.array_equal(without_average[2], with_average[2])

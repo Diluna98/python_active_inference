@@ -2491,15 +2491,16 @@ class ActiveInfAgent:
             x_copy[i] = self.softmax(x_copy[i], gamma=gamma)
         return x_copy
     
-    def perform_modal_average(self):
+    def perform_modal_average(self, start_time=0):
         # Following function averages the posterior of states over policies.
         # by executing following function, we update the self.bayesian_mod_avg
         # which stores the posterior over states for each time step of the previous trial
         # average over all policies
-        qs_temp = copy.deepcopy(self.policy_dep_posteriors)
         for factor_idx in range(self.num_factors):
-            for tau in range(self.temporal_horizon):
-                v_stack_states = np.vstack(qs_temp[:,tau,factor_idx])
+            for tau in range(start_time, self.temporal_horizon):
+                v_stack_states = np.vstack(
+                    self.policy_dep_posteriors[:,tau,factor_idx]
+                )
                 self.bayesian_mod_avg[tau, factor_idx] = v_stack_states.T.dot(self.posterior_pi[:])
 
         return self.bayesian_mod_avg
@@ -2514,7 +2515,7 @@ class ActiveInfAgent:
             del qs_temp
     """
 
-    def update_policy_posterior(self, trial, t):
+    def update_policy_posterior(self, trial, t, state_average_start=0):
         # SPM Initialization: gamma(t) = gamma(t-1)
         gamma_t = self.gamma_previous
 
@@ -2559,8 +2560,12 @@ class ActiveInfAgent:
         # Update class states and record history
         self.beta_posterior = posterior_beta
         self.gamma_previous = gamma_t
-        self.perform_modal_average()
-        if t%self.temporal_horizon == self.temporal_horizon-1:
+        if state_average_start is not None:
+            self.perform_modal_average(start_time=state_average_start)
+        if (
+            state_average_start is not None
+            and t%self.temporal_horizon == self.temporal_horizon-1
+        ):
             #store the beliefs at the end of the current planning window to be used
             # as the prior for the first message in the next planning window.
             self.previous_qs_T = self.bayesian_mod_avg[self.temporal_horizon-1] 

@@ -238,8 +238,11 @@ should use the component constructor and lifecycle above.
   future-to-present messages.
 - `FilteredRecedingHorizonInference` filters the current state once, then rolls
   that shared posterior forward under every policy. This estimator/planner
-  separation is usually the more natural default for online robotics. Both
-  receding modes select the first action and support uninterrupted control.
+  separation is usually the more natural default for online robotics. It
+  carries the shared current posterior directly and skips policy-averaged
+  future-state diagnostics by default; set `average_future_states=True` when
+  those diagnostics are needed. Both receding modes select the first action
+  and support uninterrupted control.
   Horizon 3 means the current state plus two future states. See
   [the lifecycle and migration notes](docs/public-api.md#receding-horizon-planning-030)
   and the runnable [temporal-message-passing](examples/quickstart_receding.py)
