@@ -58,7 +58,7 @@ dev = [
   "build>=1.2",
   "pytest>=8",
   "ruff>=0.12",
-  "twine>=6",
+  "twine>=7.0.0",
 ]
 docs = [
   "mkdocs-material>=9.5,<10",
