@@ -54,6 +54,14 @@ from PyAIF.inference.receding import (
 
 EPS_VAL = 1e-16 # global constant for use in spm_log() function
 
+
+def _stable_argmax(values, *, rtol=1e-12, atol=1e-15):
+    """Return the first maximum after ignoring floating-point roundoff ties."""
+    array = np.asarray(values, dtype=float)
+    maximum = np.max(array)
+    candidates = np.flatnonzero(np.isclose(array, maximum, rtol=rtol, atol=atol))
+    return int(candidates[0])
+
 def infer_states_single_policy(t, policy_idx, num_nmp, num_f, temp_hor, state_posteriors, obs_taus, A, B, D, policy, time_cost): #implimentation of the MMP
         depolarization = None
         F = None
@@ -2222,7 +2230,7 @@ class ActiveInfAgent:
             if t%self.temporal_horizon < self.temporal_horizon-1:
                 #self.alpha = 0.1 * np.exp(0.05 * trial)
                 if self.action_selection == "deterministic":
-                    policy_idx = np.argmax(self.posterior_pi)
+                    policy_idx = _stable_argmax(self.posterior_pi)
                     for factor_idx in self.controlable_states:
                         self.action_posteriors[factor_idx] = self.policies[policy_idx][t%self.temporal_horizon, factor_idx]
 
@@ -2288,7 +2296,7 @@ class ActiveInfAgent:
         else:
             # shallow inference does not have time-varying policy posteriors
             if self.action_selection == "deterministic":
-                policy_idx = np.argmax(self.posterior_pi)
+                policy_idx = _stable_argmax(self.posterior_pi)
                 for factor_idx in self.controlable_states:
                     self.action_posteriors[factor_idx] = self.policies[policy_idx][0, factor_idx]
 

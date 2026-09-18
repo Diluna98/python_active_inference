@@ -25,7 +25,7 @@ from .learning import (
     update_dirichlet_parameters,
 )
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 
 __all__ = [
     "FilteredRecedingHorizonInference",

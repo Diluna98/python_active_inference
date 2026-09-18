@@ -1,6 +1,8 @@
 import numpy as np
 import pytest
 
+from PyAIF.aif_agent import _stable_argmax
+
 from PyAIF import (
     ActiveInfAgent,
     CategoricalLikelihood,
@@ -613,3 +615,9 @@ def test_shallow_policy_scoring_supports_more_policies_than_states():
     assert agent.num_policies == 4
     assert len(expected_free_energy) == 4
     assert np.all(np.isfinite(np.asarray(expected_free_energy, dtype=float)))
+
+
+def test_deterministic_policy_tie_break_ignores_roundoff_noise():
+    posterior = np.array([0.4, 0.4 + 5e-15, 0.2])
+
+    assert _stable_argmax(posterior) == 0

@@ -5,6 +5,8 @@ import copy
 import numpy as np
 import pytest
 
+from PyAIF.aif_agent import _stable_argmax
+
 from PyAIF import ActiveInfAgent, RecedingHorizonInference
 from test_component_api import continuous_likelihood, make_components
 
@@ -46,7 +48,7 @@ def test_every_observation_gets_full_window_and_action(continuous, horizon):
         for policy in agent.policy_dep_expected_obs:
             for predictions in policy:
                 assert np.all(np.isfinite(np.asarray(predictions[0], float)))
-        expected = int(agent.policies[np.argmax(agent.posterior_pi)][0, 0])
+        expected = int(agent.policies[_stable_argmax(agent.posterior_pi)][0, 0])
         action = agent.select_action()
         assert action.tolist() == [expected]
         assert agent._current_time == step + 1

@@ -17,7 +17,7 @@ PyAIF = ["likelihood_models/*.py", "likelihood_models/*.npz"]
 
 [project]
 name = "pyaif-toolkit"
-version = "0.4.0"
+version = "0.4.1"
 description = "Active inference in Python with categorical and continuous observations"
 authors = [
   { name = "Diluna A. Warnakulasuriya" }
