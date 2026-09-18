@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.4.1 - 2026-09-18
+
+### Performance
+
+- Categorical deep-policy evaluation now lets NumPy optimize multi-factor
+  contraction order, hoists likelihood entropy outside the future-time loop,
+  and packs each policy-posterior batch once per timestep. Expected free
+  energies and policy selection retain the existing semantics.
+- Deterministic action selection treats posterior differences at numerical
+  roundoff as ties and resolves them by stable policy order.
+
 ## 0.4.0 - 2026-09-16
 
 ### Added

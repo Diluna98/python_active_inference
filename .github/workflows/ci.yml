@@ -59,7 +59,7 @@ jobs:
           python -m venv /tmp/pyaif-smoke
           /tmp/pyaif-smoke/bin/python -m pip install dist/*.whl
           cd /tmp
-          /tmp/pyaif-smoke/bin/python -c "import importlib.metadata; import PyAIF; assert importlib.metadata.version('pyaif-toolkit') == PyAIF.__version__ == '0.4.0'"
+          /tmp/pyaif-smoke/bin/python -c "import importlib.metadata; import PyAIF; assert importlib.metadata.version('pyaif-toolkit') == PyAIF.__version__ == '0.4.1'"
       - name: Verify wheel contents
         run: |
           python - <<'PY'

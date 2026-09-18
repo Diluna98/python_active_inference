@@ -177,7 +177,9 @@ the reusable agent core.
 
 Deep temporal inference automatically batches independent policies into NumPy
 tensor operations. This reduces Python-loop overhead while preserving
-policy-by-policy inference results.
+policy-by-policy inference results. Multi-factor categorical likelihoods use
+optimized contraction paths; likelihood entropy and packed posterior batches
+are reused across the future-time calculation.
 
 Policy evaluation can also use bounded worker threads:
 

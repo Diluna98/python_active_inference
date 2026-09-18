@@ -125,35 +125,45 @@ def _deep_categorical_policy_terms_batch(
     ambiguity = np.zeros(num_policies)
     predictions = []
 
-    for timestep in range(start_time, agent.temporal_horizon):
+    # These values are shared by every policy and future timestep.  Building
+    # them inside the modality loop used to repeat the same allocations and
+    # A * log(A) reductions once per timestep.
+    likelihood_entropies = tuple(
+        -np.sum(likelihood * log_stable_probability(likelihood), axis=0)
+        for likelihood in agent.A
+    )
+    posterior_batches = tuple(
+        tuple(
+            np.stack(
+                [
+                    agent.policy_dep_posteriors[policy_index, timestep, factor]
+                    for policy_index in range(num_policies)
+                ]
+            )
+            for factor in range(agent.num_factors)
+        )
+        for timestep in range(start_time, agent.temporal_horizon)
+    )
+
+    for timestep_offset, timestep in enumerate(
+        range(start_time, agent.temporal_horizon)
+    ):
         timestep_predictions = []
         for modality, likelihood in enumerate(agent.A):
             dependencies = agent.mod_dep[modality]
             arguments = [likelihood, [outcome_axis] + list(dependencies)]
             for factor in dependencies:
-                factor_posteriors = np.stack(
-                    [
-                        agent.policy_dep_posteriors[
-                            policy_index,
-                            timestep,
-                            factor,
-                        ]
-                        for policy_index in range(num_policies)
-                    ]
-                )
+                factor_posteriors = posterior_batches[timestep_offset][factor]
                 arguments.extend([factor_posteriors, [batch_axis, factor]])
             arguments.append([batch_axis, outcome_axis])
-            expected_outcome = np.einsum(*arguments)
+            expected_outcome = np.einsum(*arguments, optimize=True)
             timestep_predictions.append(expected_outcome)
 
             outcome_entropy = -np.sum(
                 expected_outcome * log_stable_probability(expected_outcome),
                 axis=1,
             )
-            likelihood_entropy = -np.sum(
-                likelihood * log_stable_probability(likelihood),
-                axis=0,
-            )
+            likelihood_entropy = likelihood_entropies[modality]
             entropy_arguments = [
                 likelihood_entropy,
                 list(dependencies),
@@ -161,21 +171,15 @@ def _deep_categorical_policy_terms_batch(
             for factor in dependencies:
                 entropy_arguments.extend(
                     [
-                        np.stack(
-                            [
-                                agent.policy_dep_posteriors[
-                                    policy_index,
-                                    timestep,
-                                    factor,
-                                ]
-                                for policy_index in range(num_policies)
-                            ]
-                        ),
+                        posterior_batches[timestep_offset][factor],
                         [batch_axis, factor],
                     ]
                 )
             entropy_arguments.append([batch_axis])
-            expected_likelihood_entropy = np.einsum(*entropy_arguments)
+            expected_likelihood_entropy = np.einsum(
+                *entropy_arguments,
+                optimize=True,
+            )
             ambiguity += outcome_entropy - expected_likelihood_entropy
             risk += expected_outcome.dot(agent.C[modality][:, timestep])
 
