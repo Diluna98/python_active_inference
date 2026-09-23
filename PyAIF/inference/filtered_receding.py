@@ -18,6 +18,8 @@ class FilteredStateInferenceResult:
     """Diagnostics from one policy-independent current-state update."""
 
     posteriors: tuple[np.ndarray, ...]
+    accuracy: float
+    complexity: float
     variational_free_energy: float
     iterations: int
     converged: bool
@@ -113,13 +115,16 @@ def _expected_log_likelihood(
     return result
 
 
-def _variational_free_energy(
+def _accuracy_complexity(
     agent: Any,
     observation: Sequence[float],
     priors: Sequence[np.ndarray],
     beliefs: Sequence[np.ndarray],
-) -> float:
-    value = 0.0
+) -> tuple[float, float]:
+    """Return the expected log likelihood and posterior-prior KL terms."""
+
+    accuracy = 0.0
+    complexity = 0.0
     for factor, posterior in enumerate(beliefs):
         likelihood = _expected_log_likelihood(
             agent,
@@ -127,12 +132,21 @@ def _variational_free_energy(
             factor,
             beliefs,
         )
-        value += posterior.dot(
-            log_stable_probability(posterior)
-            - log_stable_probability(priors[factor])
-            - likelihood
+        accuracy += posterior.dot(likelihood)
+        complexity += posterior.dot(
+            log_stable_probability(posterior) - log_stable_probability(priors[factor])
         )
-    return float(value)
+    return float(accuracy), float(complexity)
+
+
+def _variational_free_energy(
+    agent: Any,
+    observation: Sequence[float],
+    priors: Sequence[np.ndarray],
+    beliefs: Sequence[np.ndarray],
+) -> float:
+    accuracy, complexity = _accuracy_complexity(agent, observation, priors, beliefs)
+    return float(complexity - accuracy)
 
 
 def infer_current_states(
@@ -202,9 +216,12 @@ def infer_current_states(
                 break
         previous_free_energy = free_energy
 
+    accuracy, complexity = _accuracy_complexity(agent, observation, priors, current)
     return FilteredStateInferenceResult(
         posteriors=tuple(posterior.copy() for posterior in current),
-        variational_free_energy=float(free_energy),
+        accuracy=accuracy,
+        complexity=complexity,
+        variational_free_energy=float(complexity - accuracy),
         iterations=completed_iterations,
         converged=bool(change < convergence_tolerance),
     )

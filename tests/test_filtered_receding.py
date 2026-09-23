@@ -86,6 +86,23 @@ def test_categorical_current_filter_matches_shallow_inference():
 
 
 @pytest.mark.parametrize("continuous", [False, True])
+def test_state_free_energy_exposes_accuracy_and_complexity(continuous):
+    agent = make_agent(continuous=continuous)
+    observation = [-1.0] if continuous else [0]
+    agent.observe(observation)
+    agent.infer_states()
+
+    result = agent.last_state_inference
+    assert np.isfinite(result.accuracy)
+    assert np.isfinite(result.complexity)
+    assert result.complexity >= -1e-12
+    assert np.isclose(
+        result.variational_free_energy,
+        result.complexity - result.accuracy,
+    )
+
+
+@pytest.mark.parametrize("continuous", [False, True])
 @pytest.mark.parametrize("horizon", [2, 3, 4])
 def test_policy_stage_rolls_out_full_horizon_and_always_acts(continuous, horizon):
     agent = make_agent(continuous=continuous, horizon=horizon)
