@@ -130,7 +130,8 @@ agent = ActiveInfAgent(
 agent.reset()
 agent.observe([0])
 agent.infer_states()
-expected_free_energy, _ = agent.infer_policies()
+agent.infer_policies()
+expected_free_energy = agent.last_policy_inference.expected_free_energy
 action = agent.select_action()
 ```
 
@@ -224,6 +225,38 @@ agent.learn()  # only when parameter learning is enabled
 The older matrix-heavy constructor and methods such as `choose_action()` and
 `perform_learning()` remain available while examples migrate, but new projects
 should use the component constructor and lifecycle above.
+
+## Factor-dependent transitions
+
+A factor's transition may depend on other factors. For example, a human
+partner's next target can depend on their current target and a hidden
+capacity factor:
+
+```python
+model = GenerativeModel(
+    B=B,  # B[1].shape == (targets, targets, capacities, 1)
+    D=D,
+    controls_dim=[1, 1],
+    controllable_factors=[0],
+    B_dependencies=[[0], [1, 0]],
+)
+```
+
+See [Model shapes](docs/model-shapes.md#transitions-that-depend-on-other-factors).
+
+## Expected free energy and policy costs
+
+`agent.last_policy_inference` reports `expected_free_energy` (lower is better)
+and its terms `expected_utility`, `state_information_gain`,
+`parameter_information_gain` and `policy_cost`. A domain-specific cost can be
+added to every policy:
+
+```python
+def human_effort(agent, policy_index, expected_states):
+    return 0.5 * float(expected_states[0][1])
+
+agent = ActiveInfAgent(..., policy_cost_fn=human_effort)
+```
 
 ## Model structure
 

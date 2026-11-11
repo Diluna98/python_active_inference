@@ -5,6 +5,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from PyAIF.transitions import predict_states
+
 from .deep_temporal import (
     DeepTemporalInference,
     infer_deep_temporal_policies,
@@ -109,7 +111,11 @@ def observe_receding(agent, observation, time_step, executed_action):
         for factor in range(agent.num_factors):
             if factor not in agent.controlable_states and action[factor] != 0:
                 raise ValueError("Uncontrolled factors must use action zero.")
-    if action is not None:
+    if action is not None and getattr(agent, "has_B_dependencies", False):
+        agent._receding_prior = predict_states(
+            agent.B, agent.B_dependencies, agent._receding_posterior, action
+        )
+    elif action is not None:
         prior = []
         for factor in range(agent.num_factors):
             predicted = agent.B[factor][:, :, action[factor]].dot(

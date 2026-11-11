@@ -13,9 +13,12 @@ from .inference import (
     ShallowInference,
     ShallowPolicyInferenceResult,
     ShallowStateInferenceResult,
+    categorical_expected_utility,
+    categorical_state_information_gain,
     deep_categorical_policy_ambiguity,
     deep_categorical_policy_risk,
     deep_expected_free_energy,
+    expected_free_energy,
 )
 from .likelihoods import CategoricalLikelihood, ContinuousLikelihood
 from .learning import (
@@ -25,7 +28,7 @@ from .learning import (
     update_dirichlet_parameters,
 )
 
-__version__ = "0.4.1"
+__version__ = "0.5.0"
 
 __all__ = [
     "FilteredRecedingHorizonInference",
@@ -39,6 +42,9 @@ __all__ = [
     "DeepPolicyInferenceResult",
     "DeepStateInferenceResult",
     "DeepTemporalInference",
+    "categorical_expected_utility",
+    "categorical_state_information_gain",
+    "expected_free_energy",
     "deep_categorical_policy_ambiguity",
     "deep_categorical_policy_risk",
     "deep_expected_free_energy",

@@ -23,6 +23,7 @@ Contains the domain-independent hidden-state dynamics:
 - `controls_dim`
 - `controllable_factors`
 - optional explicit `policies`
+- optional `B_dependencies` (see [Model shapes](model-shapes.md))
 
 ### `CategoricalLikelihood`
 
@@ -200,6 +201,30 @@ restriction described above also apply. Run
 - `infer_policies()`: evaluate policies and update their posterior.
 - `select_action()`: select an action and advance the component lifecycle time.
 - `learn()`: apply enabled structural or likelihood parameter updates.
+
+## Policy scoring
+
+Every policy result reports the expected free energy `G(pi)` (lower is
+better) and its named terms:
+
+```text
+G = -expected_utility             E_q(o)[ln P(o | C)]
+    - state_information_gain      epistemic value
+    - parameter_information_gain  novelty of learned A, B, D
+    + policy_cost                 optional policy_cost_fn
+```
+
+`agent.G_policy` and the first value returned by `infer_policies()` hold the
+policy score `-G`, which enters `softmax(ln E + gamma * G_policy)`. The
+pre-0.5.0 names `risk`, `ambiguity` and `information_gain` remain as
+deprecated aliases.
+
+### Policy cost
+
+`ActiveInfAgent(..., policy_cost_fn=fn)` adds `fn(agent, policy_index,
+expected_states)` to each policy's expected free energy. `expected_states` is
+a tuple of factor beliefs after the action for shallow inference, and a tuple
+of per-time-point factor beliefs for deep and receding inference.
 
 ## Learning
 

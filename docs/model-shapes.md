@@ -15,6 +15,24 @@ For hidden-state factor `f`:
 The first two axes of `B[f]` therefore use the convention
 `B[next_state, previous_state, action]`.
 
+### Transitions that depend on other factors
+
+`GenerativeModel(B_dependencies=...)` lets the next state of factor `f`
+depend on the previous states of several factors. `B_dependencies[f]` lists
+those factors, normally including `f` itself:
+
+```text
+B_dependencies[f] == [f, g]
+B[f].shape == (states_dim[f], states_dim[f], states_dim[g], controls_dim[f])
+P(s_f[t+1] | s_f[t], s_g[t], u_f[t]) == B[f][:, s_f[t], s_g[t], u_f[t]]
+```
+
+Each `B[f][:, ..., action]` is normalised over its first (next-state) axis.
+Beliefs stay factorised: predictions contract `B[f]` with the belief of
+every listed factor, and a factor receives smoothing messages from every
+transition that depends on it. Omitting `B_dependencies` is equivalent to
+`[[0], [1], ...]`.
+
 ## Observation modalities
 
 For observation modality `m`:

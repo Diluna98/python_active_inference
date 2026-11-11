@@ -6,6 +6,7 @@ from typing import Any, Optional, Sequence
 import numpy as np
 
 from PyAIF.numerics import one_hot
+from PyAIF.transitions import joint_transition_evidence
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,22 @@ def categorical_transition_evidence(
     return evidence
 
 
+def _transition_evidence(agent, factor, previous_beliefs, next_belief, support):
+    """Evidence for ``pB[factor]`` given beliefs before and after a step."""
+    dependencies = getattr(agent, "B_dependencies", None)
+    if dependencies is None or tuple(dependencies[factor]) == (factor,):
+        return categorical_transition_evidence(
+            previous_beliefs[factor],
+            next_belief,
+            support,
+        )
+    return joint_transition_evidence(
+        [previous_beliefs[source] for source in dependencies[factor]],
+        next_belief,
+        support,
+    )
+
+
 def learn_deep_categorical(agent: Any) -> CategoricalLearningResult:
     """Apply configured categorical learning to one completed deep horizon."""
     learned_preference = False
@@ -144,15 +161,20 @@ def learn_deep_categorical(agent: Any) -> CategoricalLearningResult:
         for time_step in range(1, agent.temporal_horizon):
             for factor in agent.controlable_states:
                 action = int(agent.action_history[factor, time_step - 1])
-                transition_slice = agent.B[factor][:, :, action]
-                evidence = categorical_transition_evidence(
-                    agent.bayesian_mod_avg[time_step - 1, factor],
+                transition_slice = agent.B[factor][..., action]
+                evidence = _transition_evidence(
+                    agent,
+                    factor,
+                    [
+                        agent.bayesian_mod_avg[time_step - 1, source]
+                        for source in range(agent.num_factors)
+                    ],
                     agent.bayesian_mod_avg[time_step, factor],
                     transition_slice > 0,
                 )
-                agent.pB[factor][:, :, action] = update_dirichlet_parameters(
-                    agent.pB[factor][:, :, action],
-                    agent.pB_0[factor][:, :, action],
+                agent.pB[factor][..., action] = update_dirichlet_parameters(
+                    agent.pB[factor][..., action],
+                    agent.pB_0[factor][..., action],
                     evidence,
                     learning_rate=agent.learning_rate,
                     forgetting_rate=agent.forgeting_rate,
@@ -219,15 +241,20 @@ def learn_shallow_categorical(
         for time_index in range(1, agent.learning_window):
             for factor in agent.controlable_states:
                 action = int(agent.action_posteriors_cache[factor, time_index - 1])
-                transition_slice = agent.B[factor][:, :, action]
-                evidence = categorical_transition_evidence(
-                    agent.posteriors_cache[time_index - 1, factor],
+                transition_slice = agent.B[factor][..., action]
+                evidence = _transition_evidence(
+                    agent,
+                    factor,
+                    [
+                        agent.posteriors_cache[time_index - 1, source]
+                        for source in range(agent.num_factors)
+                    ],
                     agent.posteriors_cache[time_index, factor],
                     transition_slice > 0,
                 )
-                agent.pB[factor][:, :, action] = update_dirichlet_parameters(
-                    agent.pB[factor][:, :, action],
-                    agent.pB_0[factor][:, :, action],
+                agent.pB[factor][..., action] = update_dirichlet_parameters(
+                    agent.pB[factor][..., action],
+                    agent.pB_0[factor][..., action],
                     evidence,
                     learning_rate=agent.learning_rate,
                     forgetting_rate=agent.forgeting_rate,

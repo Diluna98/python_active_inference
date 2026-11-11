@@ -1,6 +1,7 @@
 """Configuration and implementation for deep temporal state inference."""
 
 import copy
+import warnings
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -8,7 +9,20 @@ import numpy as np
 
 from PyAIF.inference.base import map_policies
 from PyAIF.inference.continuous import continuous_policy_terms
-from PyAIF.numerics import factor_dot, log_stable_probability, softmax
+from PyAIF.inference.efe import (
+    DeprecatedTermNames,
+    categorical_expected_utility,
+    categorical_state_information_gain,
+    deep_expected_states,
+    evaluate_policy_cost,
+    store_policy_terms,
+)
+from PyAIF.numerics import log_stable_probability, softmax
+from PyAIF.transitions import (
+    backward_kernels,
+    batched_backward_log_message,
+    batched_forward_log_message,
+)
 
 
 @dataclass(frozen=True)
@@ -23,15 +37,20 @@ class DeepStateInferenceResult:
 
 
 @dataclass(frozen=True)
-class DeepPolicyInferenceResult:
-    """Diagnostics from expected-free-energy evaluation over deep policies."""
+class DeepPolicyInferenceResult(DeprecatedTermNames):
+    """Diagnostics from expected-free-energy evaluation over deep policies.
+
+    ``expected_free_energy`` is ``G(pi)`` (lower is better). See
+    :mod:`PyAIF.inference.efe` for the definition of each term.
+    """
 
     expected_free_energy: np.ndarray
     variational_free_energy: np.ndarray
     policy_posterior: np.ndarray
-    risk: tuple[float, ...]
-    ambiguity: tuple[float, ...]
-    information_gain: tuple[float, ...]
+    expected_utility: tuple[float, ...]
+    state_information_gain: tuple[float, ...]
+    parameter_information_gain: tuple[float, ...]
+    policy_cost: tuple[float, ...]
 
 
 def deep_expected_free_energy(
@@ -39,90 +58,58 @@ def deep_expected_free_energy(
     ambiguity: float,
     information_gain: float = 0.0,
 ) -> float:
-    """Combine deep-policy value terms using the existing PyAIF convention."""
+    """Deprecated: return the pre-0.5.0 policy score ``-G``.
+
+    Use :func:`PyAIF.inference.efe.expected_free_energy` instead.
+    """
+    warnings.warn(
+        "deep_expected_free_energy is deprecated; use "
+        "PyAIF.expected_free_energy(expected_utility, state_information_gain, "
+        "parameter_information_gain, policy_cost).",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return float(risk + ambiguity - information_gain)
 
 
-def deep_categorical_policy_ambiguity(
-    likelihoods: Any,
-    posterior_trajectory: Any,
-    start_time: int,
-) -> float:
-    """Calculate deep-policy ambiguity from categorical likelihoods."""
-    ambiguity = 0.0
-
-    for timestep in range(start_time, len(posterior_trajectory)):
-        factor_posteriors = list(posterior_trajectory[timestep])
-        outcome_entropy = 0.0
-        expected_likelihood_entropy = 0.0
-
-        for likelihood in likelihoods:
-            expected_outcome = likelihood
-            for posterior in factor_posteriors:
-                expected_outcome = np.tensordot(
-                    expected_outcome,
-                    posterior,
-                    axes=(1, 0),
-                )
-            outcome_entropy += -expected_outcome.dot(
-                log_stable_probability(expected_outcome)
-            )
-
-            likelihood_entropy = -np.sum(
-                likelihood * log_stable_probability(likelihood),
-                axis=0,
-            )
-            expected_entropy = likelihood_entropy
-            for posterior in factor_posteriors:
-                expected_entropy = np.tensordot(
-                    expected_entropy,
-                    posterior,
-                    axes=(0, 0),
-                )
-            expected_likelihood_entropy += expected_entropy
-
-        ambiguity += outcome_entropy - expected_likelihood_entropy
-
-    return float(ambiguity)
+def deep_categorical_policy_ambiguity(likelihoods, posterior_trajectory, start_time):
+    """Deprecated alias of ``categorical_state_information_gain``."""
+    warnings.warn(
+        "deep_categorical_policy_ambiguity is deprecated; it returns the state "
+        "information gain. Use categorical_state_information_gain.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return categorical_state_information_gain(
+        likelihoods, posterior_trajectory, start_time
+    )
 
 
 def deep_categorical_policy_risk(
-    likelihoods: Any,
-    preferences: Any,
-    posterior_trajectory: Any,
-    start_time: int,
-) -> tuple[float, tuple[tuple[np.ndarray, ...], ...]]:
-    """Calculate categorical preference value and predicted observations."""
-    risk = 0.0
-    predictions = []
-
-    for timestep in range(start_time, len(posterior_trajectory)):
-        factor_posteriors = list(posterior_trajectory[timestep])
-        timestep_predictions = []
-
-        for modality, likelihood in enumerate(likelihoods):
-            expected_observation = factor_dot(
-                likelihood,
-                factor_posteriors,
-            )
-            timestep_predictions.append(expected_observation)
-            risk += expected_observation.dot(preferences[modality][:, timestep])
-
-        predictions.append(tuple(timestep_predictions))
-
-    return float(risk), tuple(predictions)
+    likelihoods, preferences, posterior_trajectory, start_time
+):
+    """Deprecated alias of ``categorical_expected_utility``."""
+    warnings.warn(
+        "deep_categorical_policy_risk is deprecated; it returns the expected "
+        "utility. Use categorical_expected_utility.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return categorical_expected_utility(
+        likelihoods, preferences, posterior_trajectory, start_time
+    )
 
 
 def _deep_categorical_policy_terms_batch(
     agent: Any,
     start_time: int,
 ):
-    """Vectorize categorical risk and ambiguity over all deep policies."""
+    """Vectorize expected utility and state information gain over policies."""
     num_policies = len(agent.policies)
     batch_axis = agent.num_factors
     outcome_axis = agent.num_factors + 1
-    risk = np.zeros(num_policies)
-    ambiguity = np.zeros(num_policies)
+    expected_utility = np.zeros(num_policies)
+    state_information_gain = np.zeros(num_policies)
     predictions = []
 
     # These values are shared by every policy and future timestep.  Building
@@ -180,12 +167,12 @@ def _deep_categorical_policy_terms_batch(
                 *entropy_arguments,
                 optimize=True,
             )
-            ambiguity += outcome_entropy - expected_likelihood_entropy
-            risk += expected_outcome.dot(agent.C[modality][:, timestep])
+            state_information_gain += outcome_entropy - expected_likelihood_entropy
+            expected_utility += expected_outcome.dot(agent.C[modality][:, timestep])
 
         predictions.append(tuple(timestep_predictions))
 
-    return risk, ambiguity, tuple(predictions)
+    return expected_utility, state_information_gain, tuple(predictions)
 
 
 def _expected_log_likelihood_for_trajectory(
@@ -378,6 +365,48 @@ def _infer_deep_policy_states(
     )
 
 
+def _dependent_messages(
+    agent: Any,
+    factor: int,
+    tau_reference: int,
+    time_step: int,
+    policies: np.ndarray,
+    trajectories: list,
+    kernels: Any,
+    shape: tuple,
+):
+    """Forward and backward log messages when transitions span factors."""
+
+    horizon = agent.temporal_horizon
+    if tau_reference == 0:
+        if time_step < horizon:
+            initial = agent.D[factor]
+        else:
+            initial = agent.previous_qs_T[factor]
+        forward_message = np.broadcast_to(log_stable_probability(initial), shape)
+    else:
+        forward_message = batched_forward_log_message(
+            agent.B[factor],
+            agent.B_dependencies[factor],
+            [values[:, tau_reference - 1, :] for values in trajectories],
+            policies[:, tau_reference - 1, factor],
+        )
+
+    if tau_reference == horizon - 1:
+        backward_message = np.zeros(shape)
+    else:
+        backward_message = batched_backward_log_message(
+            kernels,
+            agent.B_dependencies,
+            agent.transition_children[factor],
+            factor,
+            [values[:, tau_reference, :] for values in trajectories],
+            [values[:, tau_reference + 1, :] for values in trajectories],
+            policies[:, tau_reference, :],
+        )
+    return forward_message, backward_message
+
+
 def _infer_deep_policy_batch(
     agent: Any,
     policy_indices: np.ndarray,
@@ -400,6 +429,13 @@ def _infer_deep_policy_batch(
         )
         for factor in range(agent.num_factors)
     ]
+
+    dependent_transitions = bool(getattr(agent, "has_B_dependencies", False))
+    kernels = (
+        backward_kernels(agent.pB, agent.B_dependencies)
+        if dependent_transitions
+        else None
+    )
 
     previous_free_energy = np.full(num_batch_policies, np.nan)
     reported_free_energy = np.full(num_batch_policies, np.nan)
@@ -483,70 +519,82 @@ def _infer_deep_policy_batch(
                         tau_reference,
                     )
 
-                if tau_reference == 0:
-                    if time_step < agent.temporal_horizon:
-                        forward_message = np.broadcast_to(
-                            log_stable_probability(agent.D[factor]),
-                            likelihood_message.shape,
-                        )
-                    else:
-                        forward_message = np.broadcast_to(
-                            log_stable_probability(agent.previous_qs_T[factor]),
-                            likelihood_message.shape,
-                        )
-
-                    actions = policies[:, tau_reference, factor]
-                    matrices = np.transpose(
-                        reverse_transition[:, :, actions],
-                        (2, 0, 1),
+                if dependent_transitions:
+                    forward_message, backward_message = _dependent_messages(
+                        agent,
+                        factor,
+                        tau_reference,
+                        time_step,
+                        policies,
+                        trajectories,
+                        kernels,
+                        likelihood_message.shape,
                     )
-                    backward_message = log_stable_probability(
-                        np.einsum(
-                            "pij,pj->pi",
-                            matrices,
-                            trajectories[factor][:, tau_reference + 1, :],
-                        )
-                    )
-                elif tau_reference == agent.temporal_horizon - 1:
-                    actions = policies[:, tau_reference - 1, factor]
-                    matrices = np.transpose(
-                        transition[:, :, actions],
-                        (2, 0, 1),
-                    )
-                    forward_message = log_stable_probability(
-                        np.einsum(
-                            "pij,pj->pi",
-                            matrices,
-                            trajectories[factor][:, tau_reference - 1, :],
-                        )
-                    )
-                    backward_message = np.zeros_like(forward_message)
                 else:
-                    previous_actions = policies[:, tau_reference - 1, factor]
-                    forward_matrices = np.transpose(
-                        transition[:, :, previous_actions],
-                        (2, 0, 1),
-                    )
-                    forward_message = log_stable_probability(
-                        np.einsum(
-                            "pij,pj->pi",
-                            forward_matrices,
-                            trajectories[factor][:, tau_reference - 1, :],
-                        )
-                    )
+                    if tau_reference == 0:
+                        if time_step < agent.temporal_horizon:
+                            forward_message = np.broadcast_to(
+                                log_stable_probability(agent.D[factor]),
+                                likelihood_message.shape,
+                            )
+                        else:
+                            forward_message = np.broadcast_to(
+                                log_stable_probability(agent.previous_qs_T[factor]),
+                                likelihood_message.shape,
+                            )
 
-                    actions = policies[:, tau_reference, factor]
-                    backward_matrices = np.transpose(
-                        reverse_transition[:, :, actions],
-                        (2, 0, 1),
-                    )
-                    backward_message = log_stable_probability(
-                        np.einsum(
-                            "pij,pj->pi",
-                            backward_matrices,
-                            trajectories[factor][:, tau_reference + 1, :],
+                        actions = policies[:, tau_reference, factor]
+                        matrices = np.transpose(
+                            reverse_transition[:, :, actions],
+                            (2, 0, 1),
                         )
-                    )
+                        backward_message = log_stable_probability(
+                            np.einsum(
+                                "pij,pj->pi",
+                                matrices,
+                                trajectories[factor][:, tau_reference + 1, :],
+                            )
+                        )
+                    elif tau_reference == agent.temporal_horizon - 1:
+                        actions = policies[:, tau_reference - 1, factor]
+                        matrices = np.transpose(
+                            transition[:, :, actions],
+                            (2, 0, 1),
+                        )
+                        forward_message = log_stable_probability(
+                            np.einsum(
+                                "pij,pj->pi",
+                                matrices,
+                                trajectories[factor][:, tau_reference - 1, :],
+                            )
+                        )
+                        backward_message = np.zeros_like(forward_message)
+                    else:
+                        previous_actions = policies[:, tau_reference - 1, factor]
+                        forward_matrices = np.transpose(
+                            transition[:, :, previous_actions],
+                            (2, 0, 1),
+                        )
+                        forward_message = log_stable_probability(
+                            np.einsum(
+                                "pij,pj->pi",
+                                forward_matrices,
+                                trajectories[factor][:, tau_reference - 1, :],
+                            )
+                        )
+
+                        actions = policies[:, tau_reference, factor]
+                        backward_matrices = np.transpose(
+                            reverse_transition[:, :, actions],
+                            (2, 0, 1),
+                        )
+                        backward_message = log_stable_probability(
+                            np.einsum(
+                                "pij,pj->pi",
+                                backward_matrices,
+                                trajectories[factor][:, tau_reference + 1, :],
+                            )
+                        )
 
                 prediction_error = (
                     0.5 * (forward_message + backward_message)
@@ -634,7 +682,9 @@ def infer_deep_temporal_states(
     policy_workers: int = 1,
 ) -> DeepStateInferenceResult:
     """Update policy-dependent state beliefs using marginal message passing."""
-    if len(agent.policies) >= 4:
+    # The batched solver is exact for any number of policies; it is the only
+    # path that implements transitions spanning several factors.
+    if len(agent.policies) >= 4 or getattr(agent, "has_B_dependencies", False):
         num_batches = min(policy_workers, len(agent.policies))
         policy_batches = [
             batch
@@ -884,104 +934,73 @@ def infer_deep_temporal_states(
     )
 
 
-def _infer_deep_continuous_policies(
-    agent: Any,
-    trial: int,
-    time_step: int,
-    policy_workers: int,
-    state_average_start: Optional[int],
-) -> DeepPolicyInferenceResult:
-    """Evaluate deep policies using a continuous likelihood component."""
+def _store_predictions(agent: Any, policy_index: int, start_time: int, predictions):
+    for offset, timestep_predictions in enumerate(predictions):
+        for modality, prediction in enumerate(timestep_predictions):
+            agent.policy_dep_expected_obs[policy_index, start_time + offset][
+                modality
+            ] = prediction
 
+
+def _continuous_terms(agent: Any, time_step: int, policy_index: int):
     start_time = time_step % agent.temporal_horizon
+    expected_utility = 0.0
+    state_information_gain = 0.0
+    predictions = []
+    clock = (
+        agent._current_time if getattr(agent, "receding_horizon", False) else time_step
+    )
+    for timestep in range(start_time, agent.temporal_horizon):
+        state_beliefs = [
+            agent.policy_dep_posteriors[policy_index, timestep, factor]
+            for factor in range(agent.num_factors)
+        ]
+        cost, information_gain, timestep_predictions = continuous_policy_terms(
+            agent.likelihood,
+            state_beliefs,
+            seed_offset=(
+                (clock * len(agent.policies) + policy_index) * agent.temporal_horizon
+                + timestep
+            ),
+        )
+        # continuous_policy_terms returns the expected preference cost.
+        expected_utility -= cost
+        state_information_gain += information_gain
+        predictions.append(timestep_predictions)
+    return expected_utility, state_information_gain, tuple(predictions)
 
-    def evaluate_policy(policy_index: int):
-        preference_cost = 0.0
-        state_information_gain = 0.0
-        parameter_information_gain = 0.0
-        trajectory_predictions = []
 
-        for timestep in range(start_time, agent.temporal_horizon):
-            state_beliefs = [
-                agent.policy_dep_posteriors[policy_index, timestep, factor]
-                for factor in range(agent.num_factors)
-            ]
-            cost, information_gain, predictions = continuous_policy_terms(
-                agent.likelihood,
-                state_beliefs,
-                seed_offset=(
-                    (
-                        (
-                            agent._current_time
-                            if getattr(agent, "receding_horizon", False)
-                            else time_step
-                        )
-                        * len(agent.policies)
-                        + policy_index
-                    )
-                    * agent.temporal_horizon
-                    + timestep
-                ),
-            )
-            preference_cost += cost
-            state_information_gain += information_gain
-            trajectory_predictions.append(predictions)
-            if agent.learning_A:
-                parameter_information_gain += (
-                    agent.likelihood.parameter_information_gain(state_beliefs)
+def _categorical_terms(agent: Any, time_step: int, policy_index: int):
+    start_time = time_step % agent.temporal_horizon
+    trajectory = agent.policy_dep_posteriors[policy_index]
+    state_information_gain = categorical_state_information_gain(
+        agent.A, trajectory, start_time, agent.mod_dep
+    )
+    expected_utility, predictions = categorical_expected_utility(
+        agent.A, agent.C, trajectory, start_time, agent.mod_dep
+    )
+    return expected_utility, state_information_gain, predictions
+
+
+def _parameter_information_gain(agent: Any, time_step: int, policy_index: int):
+    start_time = time_step % agent.temporal_horizon
+    value = 0.0
+    if agent.learning_A:
+        if agent.continous_obs:
+            for timestep in range(start_time, agent.temporal_horizon):
+                value += agent.likelihood.parameter_information_gain(
+                    [
+                        agent.policy_dep_posteriors[policy_index, timestep, factor]
+                        for factor in range(agent.num_factors)
+                    ]
                 )
-
-        information_gain = parameter_information_gain
-        if agent.learning_D:
-            information_gain += agent.calculate_pD_info_gain(policy_index)
-        if agent.learning_B:
-            information_gain += agent.calculate_pB_info_gain_vectorized(
-                time_step,
-                policy_index,
-            )
-
-        expected_free_energy = (
-            -preference_cost + state_information_gain + information_gain
-        )
-        return (
-            float(preference_cost),
-            float(state_information_gain),
-            float(information_gain),
-            float(expected_free_energy),
-            tuple(trajectory_predictions),
-        )
-
-    results = map_policies(
-        evaluate_policy,
-        len(agent.policies),
-        policy_workers,
-    )
-    agent.risk = [result[0] for result in results]
-    agent.ambiguity = [result[1] for result in results]
-    agent.info_gain = [result[2] for result in results]
-    for policy_index, result in enumerate(results):
-        agent.G_policy[policy_index] = result[3]
-        for offset, timestep_predictions in enumerate(result[4]):
-            timestep = start_time + offset
-            for modality, prediction in enumerate(timestep_predictions):
-                agent.policy_dep_expected_obs[
-                    policy_index,
-                    timestep,
-                ][modality] = prediction
-
-    agent.update_policy_posterior(
-        trial,
-        time_step,
-        state_average_start=state_average_start,
-    )
-    return DeepPolicyInferenceResult(
-        expected_free_energy=copy.deepcopy(agent.G_policy),
-        variational_free_energy=copy.deepcopy(agent.F_policy),
-        policy_posterior=copy.deepcopy(agent.posterior_pi),
-        risk=tuple(agent.risk),
-        ambiguity=tuple(agent.ambiguity),
-        information_gain=tuple(agent.info_gain),
-    )
+        else:
+            value += agent.calculate_pA_info_gain(time_step, policy_index)
+    if agent.learning_D:
+        value += agent.calculate_pD_info_gain(policy_index)
+    if agent.learning_B:
+        value += agent.calculate_pB_info_gain_vectorized(time_step, policy_index)
+    return float(value)
 
 
 def infer_deep_temporal_policies(
@@ -992,210 +1011,63 @@ def infer_deep_temporal_policies(
     policy_workers: int = 1,
     state_average_start: Optional[int] = 0,
 ) -> DeepPolicyInferenceResult:
-    """Evaluate deep policies and update their posterior."""
-    if agent.continous_obs:
-        return _infer_deep_continuous_policies(
-            agent,
-            trial,
-            time_step,
-            policy_workers,
-            state_average_start,
-        )
+    """Score deep policies by expected free energy and update their posterior."""
 
-    if len(agent.policies) >= 4:
-        start_time = time_step % agent.temporal_horizon
-        policy_risk, policy_ambiguity, predictions = (
-            _deep_categorical_policy_terms_batch(agent, start_time)
-        )
+    start_time = time_step % agent.temporal_horizon
+    num_policies = len(agent.policies)
 
-        def information_gain(policy_index: int) -> float:
-            value = 0.0
-            if agent.learning_D:
-                value += agent.calculate_pD_info_gain(policy_index)
-            if agent.learning_A:
-                value += agent.calculate_pA_info_gain(
-                    time_step,
-                    policy_index,
-                )
-            if agent.learning_B:
-                value += agent.calculate_pB_info_gain_vectorized(
-                    time_step,
-                    policy_index,
-                )
-            return float(value)
-
-        policy_information_gain = np.asarray(
-            map_policies(
-                information_gain,
-                len(agent.policies),
-                policy_workers,
-            )
+    if not agent.continous_obs and num_policies >= 4:
+        utility, state_gain, batch_predictions = _deep_categorical_policy_terms_batch(
+            agent, start_time
         )
-        expected_free_energy = policy_risk + policy_ambiguity - policy_information_gain
-        for policy_index in range(len(agent.policies)):
-            agent.G_policy[policy_index] = expected_free_energy[policy_index]
-        for offset, timestep_predictions in enumerate(predictions):
-            timestep = start_time + offset
+        for offset, timestep_predictions in enumerate(batch_predictions):
             for modality, modality_predictions in enumerate(timestep_predictions):
                 for policy_index, prediction in enumerate(modality_predictions):
-                    agent.policy_dep_expected_obs[
-                        policy_index,
-                        timestep,
-                    ][modality] = prediction
-
-        agent.risk = policy_risk.tolist()
-        agent.ambiguity = policy_ambiguity.tolist()
-        agent.info_gain = policy_information_gain.tolist()
-        agent.update_policy_posterior(
-            trial,
-            time_step,
-            state_average_start=state_average_start,
-        )
-        return DeepPolicyInferenceResult(
-            expected_free_energy=copy.deepcopy(agent.G_policy),
-            variational_free_energy=copy.deepcopy(agent.F_policy),
-            policy_posterior=copy.deepcopy(agent.posterior_pi),
-            risk=tuple(agent.risk),
-            ambiguity=tuple(agent.ambiguity),
-            information_gain=tuple(agent.info_gain),
-        )
-
-    if policy_workers > 1 and len(agent.policies) > 1:
-
-        def evaluate_policy(policy_index: int):
-            information_gain = 0.0
-            start_time = time_step % agent.temporal_horizon
-            posterior_trajectory = agent.policy_dep_posteriors[policy_index]
-            ambiguity = deep_categorical_policy_ambiguity(
-                agent.A,
-                posterior_trajectory,
-                start_time,
-            )
-            risk, predictions = deep_categorical_policy_risk(
-                agent.A,
-                agent.C,
-                posterior_trajectory,
-                start_time,
-            )
-
-            if agent.learning_D:
-                information_gain += agent.calculate_pD_info_gain(policy_index)
-            if agent.learning_A:
-                information_gain += agent.calculate_pA_info_gain(
-                    time_step,
-                    policy_index,
-                )
-            if agent.learning_B:
-                information_gain += agent.calculate_pB_info_gain_vectorized(
-                    time_step,
-                    policy_index,
-                )
-
-            return (
-                float(risk),
-                float(ambiguity),
-                float(information_gain),
-                deep_expected_free_energy(risk, ambiguity, information_gain),
-                predictions,
-            )
-
-        results = map_policies(
-            evaluate_policy,
-            len(agent.policies),
+                    agent.policy_dep_expected_obs[policy_index, start_time + offset][
+                        modality
+                    ] = prediction
+    else:
+        terms = _continuous_terms if agent.continous_obs else _categorical_terms
+        policy_terms = map_policies(
+            lambda policy_index: terms(agent, time_step, policy_index),
+            num_policies,
             policy_workers,
         )
-        agent.risk = [result[0] for result in results]
-        agent.ambiguity = [result[1] for result in results]
-        agent.info_gain = [result[2] for result in results]
-        for policy_index, result in enumerate(results):
-            agent.G_policy[policy_index] = result[3]
-            for offset, timestep_predictions in enumerate(result[4]):
-                timestep = time_step % agent.temporal_horizon + offset
-                for modality, prediction in enumerate(timestep_predictions):
-                    agent.policy_dep_expected_obs[
-                        policy_index,
-                        timestep,
-                    ][modality] = prediction
+        utility = [result[0] for result in policy_terms]
+        state_gain = [result[1] for result in policy_terms]
+        for policy_index, result in enumerate(policy_terms):
+            _store_predictions(agent, policy_index, start_time, result[2])
 
-        agent.update_policy_posterior(
-            trial,
-            time_step,
-            state_average_start=state_average_start,
+    def remaining_terms(policy_index: int):
+        parameter_gain = _parameter_information_gain(agent, time_step, policy_index)
+        cost = evaluate_policy_cost(
+            agent,
+            policy_index,
+            deep_expected_states(agent, policy_index, start_time),
         )
-        return DeepPolicyInferenceResult(
-            expected_free_energy=copy.deepcopy(agent.G_policy),
-            variational_free_energy=copy.deepcopy(agent.F_policy),
-            policy_posterior=copy.deepcopy(agent.posterior_pi),
-            risk=tuple(agent.risk),
-            ambiguity=tuple(agent.ambiguity),
-            information_gain=tuple(agent.info_gain),
-        )
+        return parameter_gain, cost
 
-    agent.risk = []
-    agent.ambiguity = []
-    agent.info_gain = []
-    policy_risk = []
-    policy_ambiguity = []
-    policy_information_gain = []
-
-    for policy_index in range(len(agent.policies)):
-        information_gain = 0.0
-        start_time = time_step % agent.temporal_horizon
-        posterior_trajectory = agent.policy_dep_posteriors[policy_index]
-        ambiguity = deep_categorical_policy_ambiguity(
-            agent.A,
-            posterior_trajectory,
-            start_time,
-        )
-        risk, predictions = deep_categorical_policy_risk(
-            agent.A,
-            agent.C,
-            posterior_trajectory,
-            start_time,
-        )
-        for offset, timestep_predictions in enumerate(predictions):
-            timestep = start_time + offset
-            for modality, prediction in enumerate(timestep_predictions):
-                agent.policy_dep_expected_obs[
-                    policy_index,
-                    timestep,
-                ][modality] = prediction
-
-        if agent.learning_D:
-            information_gain += agent.calculate_pD_info_gain(policy_index)
-        if agent.learning_A:
-            information_gain += agent.calculate_pA_info_gain(
-                time_step,
-                policy_index,
-            )
-        if agent.learning_B:
-            information_gain += agent.calculate_pB_info_gain_vectorized(
-                time_step,
-                policy_index,
-            )
-
-        policy_risk.append(float(risk))
-        policy_ambiguity.append(float(ambiguity))
-        policy_information_gain.append(float(information_gain))
-        agent.G_policy[policy_index] = deep_expected_free_energy(
-            risk,
-            ambiguity,
-            information_gain,
-        )
-
+    extra = map_policies(remaining_terms, num_policies, policy_workers)
+    store_policy_terms(
+        agent,
+        utility,
+        state_gain,
+        [value[0] for value in extra],
+        [value[1] for value in extra],
+    )
     agent.update_policy_posterior(
         trial,
         time_step,
         state_average_start=state_average_start,
     )
-
     return DeepPolicyInferenceResult(
-        expected_free_energy=copy.deepcopy(agent.G_policy),
+        expected_free_energy=np.asarray(agent.expected_free_energy, dtype=float),
         variational_free_energy=copy.deepcopy(agent.F_policy),
         policy_posterior=copy.deepcopy(agent.posterior_pi),
-        risk=tuple(policy_risk),
-        ambiguity=tuple(policy_ambiguity),
-        information_gain=tuple(policy_information_gain),
+        expected_utility=tuple(agent.expected_utility),
+        state_information_gain=tuple(agent.state_information_gain),
+        parameter_information_gain=tuple(agent.parameter_information_gain),
+        policy_cost=tuple(agent.policy_cost),
     )
 
 

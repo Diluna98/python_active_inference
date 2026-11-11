@@ -2,7 +2,7 @@ import PyAIF
 
 
 def test_public_api_exposes_version_and_core_components():
-    assert PyAIF.__version__ == "0.4.1"
+    assert PyAIF.__version__ == "0.5.0"
 
     expected = {
         "ActiveInfAgent",
@@ -14,6 +14,9 @@ def test_public_api_exposes_version_and_core_components():
         "RecedingHorizonInference",
         "GenerativeModel",
         "ShallowInference",
+        "expected_free_energy",
+        "categorical_expected_utility",
+        "categorical_state_information_gain",
         "utils",
     }
     assert expected.issubset(PyAIF.__all__)

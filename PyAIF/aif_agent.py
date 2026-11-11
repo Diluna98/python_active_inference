@@ -29,6 +29,13 @@ from PyAIF.numerics import (
     transpose_transition,
     wnorm,
 )
+from PyAIF.transitions import (
+    children_of,
+    has_factor_dependencies,
+    normalize_dependencies,
+    predict_factor,
+    transition_novelty,
+)
 from PyAIF.inference.shallow import (
     infer_shallow_policies,
     infer_shallow_states,
@@ -370,7 +377,7 @@ class ActiveInfAgent:
         learning_B = False, learning_E = False, learning_C = False, learning_window = 4,
         continous_obs = False, lm_name = None, mod_dependency = None, pref_dep = None, factor_dep = None, obs_limits = None,
         obstacles_dic = None, action_selection = "marginal", *,
-        model=None, likelihood=None, inference=None,
+        model=None, likelihood=None, inference=None, policy_cost_fn=None,
     ):
         component_values = (model, likelihood, inference)
         self.receding_horizon = isinstance(inference, RecedingHorizonInference)
@@ -432,6 +439,15 @@ class ActiveInfAgent:
             self.model = model
             self.likelihood = likelihood
             self.inference = inference
+            B_dependencies = model.B_dependencies
+        else:
+            B_dependencies = None
+
+        if policy_cost_fn is not None and not callable(policy_cost_fn):
+            raise TypeError("policy_cost_fn must be callable.")
+        # Optional cost added to each policy's expected free energy:
+        # policy_cost_fn(agent, policy_index, expected_states) -> float.
+        self.policy_cost_fn = policy_cost_fn
 
         required_dimensions = {
             "states_dim": states_dim,
@@ -451,6 +467,11 @@ class ActiveInfAgent:
 
         self.factor_dep = factor_dep
         self.pref_dep = pref_dep
+        self.B_dependencies = normalize_dependencies(B_dependencies, len(states_dim))
+        self.has_B_dependencies = has_factor_dependencies(self.B_dependencies)
+        self.transition_children = children_of(self.B_dependencies)
+        if self.has_B_dependencies and factor_dep:
+            raise ValueError("B_dependencies cannot be combined with factor_dep.")
         if mod_dependency is None:
             mod_dependency = [
                 list(range(len(states_dim)))
@@ -777,6 +798,7 @@ class ActiveInfAgent:
         if normalize:
             self.normalize_columns()
         self.initialize_variables()
+        self.store_parameters()
         self._current_trial = int(trial)
         self._current_time = 0
         self._pending_observation = None
@@ -930,23 +952,28 @@ class ActiveInfAgent:
 
     
     def store_parameters(self):
-        if not self.continous_obs:
-            if self.learning_A == True:
-                for modality_idx, modality in enumerate(self.pA):
-                    self.pA_prior[modality_idx] = copy.deepcopy(modality)
-                    self.pA_complexity[modality_idx] = self.wnorm_new(self.pA_prior[modality_idx])*(self.pA_prior[modality_idx] > 0)
+        """Snapshot Dirichlet parameters and refresh the novelty weights.
 
-            if self.learning_D == True:
-                for factor_idx, factor in enumerate(self.pD):
-                    self.pD_prior[factor_idx] = copy.deepcopy(factor)
-                    self.pD_complexity[factor_idx] = self.wnorm_new(self.pD_prior[factor_idx])
+        Called by ``reset()``; research loops may also call it explicitly at
+        the start of each trial.
+        """
+        if not self.continous_obs and self.learning_A:
+            for modality_idx, modality in enumerate(self.pA):
+                self.pA_prior[modality_idx] = copy.deepcopy(modality)
+                self.pA_complexity[modality_idx] = self.wnorm_new(self.pA_prior[modality_idx])*(self.pA_prior[modality_idx] > 0)
 
-            if self.learning_B == True:
-                for factor_idx, factor in enumerate(self.pB):
-                    self.pB_prior[factor_idx] = copy.deepcopy(factor)
-                    self.pB_complexity[factor_idx] = self.wnorm_new(self.pB_prior[factor_idx])*(self.pB_prior[factor_idx] > 0)            
+        if self.learning_D:
+            for factor_idx, factor in enumerate(self.pD):
+                self.pD_prior[factor_idx] = copy.deepcopy(factor)
+                self.pD_complexity[factor_idx] = self.wnorm_new(self.pD_prior[factor_idx])
+
+        if self.learning_B:
+            for factor_idx, factor in enumerate(self.pB):
+                self.pB_prior[factor_idx] = copy.deepcopy(factor)
+                self.pB_complexity[factor_idx] = self.wnorm_new(self.pB_prior[factor_idx])*(self.pB_prior[factor_idx] > 0)
 
     def infer_states_multiprocessing(self, trial, t):
+        self._reject_B_dependencies("this legacy method")
         num_nmp = self.number_of_msg_passing
         num_f = self.num_factors
         temp_hor = self.temporal_horizon
@@ -1077,6 +1104,7 @@ class ActiveInfAgent:
 
     
     def infer_states_custom(self, trial, t): #implimentation of the MMP #Only for blind_obident_agent_example
+        self._reject_B_dependencies("this legacy method")
 
         #@NOTE: Policy_pruning functionality needs to be debugged.
         #if self.policy_pruning:
@@ -1195,12 +1223,29 @@ class ActiveInfAgent:
             info_gain_tot += self.calculate_pB_info_gain_vectorized(t, policy_idx)
         #if self.learning_E:
         #    info_gain_tot += self.calculate_pE_info_gain(policy_idx)
-        return policy_idx, risk_term + ambiguity_term - info_gain_tot
+        # Legacy scorer: novelty is now returned as a positive value.
+        return policy_idx, risk_term + ambiguity_term + info_gain_tot
 
     
+    def _reject_B_dependencies(self, feature):
+        if getattr(self, "has_B_dependencies", False):
+            raise NotImplementedError(
+                f"B_dependencies are not supported by {feature}; use the "
+                "component lifecycle (infer_states/infer_policies)."
+            )
+
     def get_expected_states(self, policy):
         # this function use during shallow inference
         qs_fur = np.empty(self.num_factors, dtype=object)
+        if self.has_B_dependencies:
+            for factor, dependencies in enumerate(self.B_dependencies):
+                qs_fur[factor] = predict_factor(
+                    self.B[factor],
+                    dependencies,
+                    self.posteriors,
+                    int(policy[factor]),
+                )
+            return qs_fur
         for cntrl_factor, action in enumerate(policy):
             qs_fur[cntrl_factor] = self.B[cntrl_factor][...,int(action)] @ self.posteriors[cntrl_factor]
         return qs_fur
@@ -1274,7 +1319,8 @@ class ActiveInfAgent:
                     )
                 )
 
-        G = (info_gain_tot - risk_term + ambiguity_term*0.5)
+        # Legacy scorer: novelty is now returned as a positive value.
+        G = (-info_gain_tot - risk_term + ambiguity_term*0.5)
             
 
 
@@ -1289,6 +1335,7 @@ class ActiveInfAgent:
         )
     
     def infer_policies_parallel(self, trial, t, gamma_const=16.0):
+        self._reject_B_dependencies("this legacy method")
 
         results = Parallel(
         n_jobs=-1,
@@ -1326,6 +1373,13 @@ class ActiveInfAgent:
         self.update_policy_posterior(trial, t)
     
     def infer_policies(self, trial=None, t=None, gamma_const=240.0):
+        """Score policies and update the policy posterior.
+
+        Returns ``(G_policy, F_policy)``: the policy scores ``-G`` (higher is
+        better) and, for deep inference, the policy free-energy scores. The
+        expected free energy ``G`` and its named terms are available on
+        ``agent.last_policy_inference``.
+        """
         if trial is None:
             trial = getattr(self, "_current_trial", 0)
         if t is None:
@@ -1401,89 +1455,82 @@ class ActiveInfAgent:
         return wE_term_policy
     '''
     
+    # Parameter information gain ("novelty"). Every method below returns a
+    # non-negative value: the expected information gain about Dirichlet
+    # parameters. ``*_complexity`` holds PyAIF's non-positive ``wnorm`` weights.
+
     def calculate_pD_info_gain(self, policy_idx):
-        wD_term_policy = 0
-        if self.deep_inference:
-            # @NOTE according to the MATLAB code, pD info gain do not
-            # depend on the time step of the policy. Therefore, we can
-            # calculate it only when t==0, for the very first time step.
-            for factor_idx in range(self.num_factors):
-                wD_factor = self.pD_complexity[factor_idx]
-                #expected_sts = self.D[factor_idx].dot(self.policy_dep_posteriors[policy_idx, 0, factor_idx])
-                expected_sts_pD = wD_factor.dot(self.policy_dep_posteriors[policy_idx, 0, factor_idx])
-                wD_term_policy += expected_sts_pD
-                #wD_term_policy += expected_sts*expected_sts_pD
-            return wD_term_policy
-        else:
-            #@NOTE according to PYMDP in shallow inference, pD info gain is not included in EFE calculation.
-            for factor_idx in range(self.num_factors):
-                wD_factor = self.pD_complexity[factor_idx]
-                expected_sts_pD = wD_factor.dot(self.posteriors[factor_idx])
-                wD_term_policy += expected_sts_pD
-            return wD_term_policy
+        """Novelty of the initial-state parameters ``pD``."""
+        novelty = 0.0
+        for factor_idx in range(self.num_factors):
+            if self.deep_inference:
+                # pD novelty only depends on the first time point.
+                belief = self.policy_dep_posteriors[policy_idx, 0, factor_idx]
+            else:
+                belief = self.posteriors[factor_idx]
+            novelty += -self.pD_complexity[factor_idx].dot(belief)
+        return float(novelty)
+
+    def _transition_novelty_step(self, previous_beliefs, next_beliefs, action_row):
+        novelty = 0.0
+        for factor_idx in range(self.num_factors):
+            novelty += transition_novelty(
+                self.pB_complexity[factor_idx],
+                self.B_dependencies[factor_idx],
+                previous_beliefs,
+                next_beliefs[factor_idx],
+                int(action_row[factor_idx]),
+            )
+        return novelty
 
     def calculate_pB_info_gain(self, t, policy_idx, qs_fur=None):
-        wB_term_policy = 0
+        """Novelty of the transition parameters ``pB``.
+
+        ``sum_s' q(s') W(s', sources) prod q(sources)`` per transition, with
+        the next-state axis of ``W`` paired with the predicted belief.
+        """
         policy = self.policies[policy_idx]
         if self.deep_inference:
-            for timestep in range(t%self.temporal_horizon, self.temporal_horizon):
-                action_t = policy[timestep]
-                for factor_idx in range(self.num_factors):
-                    wB_factor = self.pB_complexity[factor_idx][:, :, action_t[factor_idx]]
-                    expected_states_t = self.policy_dep_posteriors[policy_idx, timestep, factor_idx]
-                    expected_states_t1 = self.policy_dep_posteriors[policy_idx, timestep + 1, factor_idx]
-                    wB_term_policy += expected_states_t.T @ wB_factor @ expected_states_t1
-                    #expected_sts_pB_2 = wB_factor.dot(self.policy_dep_posteriors[policy_idx, timestep+1, factor_idx])
-                    #expected_sts_pB_1 = wB_factor.dot(self.policy_dep_posteriors[policy_idx, timestep, factor_idx])
-                    #wB_term_policy += expected_sts_pB_1.dot(expected_sts_pB_2)
-            return wB_term_policy
-
-        else:
-            action_t = policy[0]
-            for factor_idx in range(self.num_factors):
-                wB_factor = self.pB_complexity[factor_idx][:, :, action_t[factor_idx]]
-                wB_term_policy += self.posteriors[factor_idx].T @ wB_factor @ qs_fur[factor_idx]
-            return wB_term_policy 
+            return self.calculate_pB_info_gain_vectorized(t, policy_idx)
+        return float(
+            self._transition_novelty_step(self.posteriors, qs_fur, policy[0])
+        )
 
     def calculate_pB_info_gain_vectorized(self, t, policy_idx):
-        T = self.temporal_horizon - 1 - t%self.temporal_horizon
-        if T <= 0:
-            return 0.0  # no timesteps to process
-        F = self.num_factors
+        """Deep-policy transition novelty summed over the remaining window."""
+        start = t % self.temporal_horizon
+        policy = self.policies[policy_idx]
+        novelty = 0.0
+        for timestep in range(start, self.temporal_horizon - 1):
+            previous_beliefs = [
+                self.policy_dep_posteriors[policy_idx, timestep, factor]
+                for factor in range(self.num_factors)
+            ]
+            next_beliefs = [
+                self.policy_dep_posteriors[policy_idx, timestep + 1, factor]
+                for factor in range(self.num_factors)
+            ]
+            novelty += self._transition_novelty_step(
+                previous_beliefs,
+                next_beliefs,
+                policy[timestep],
+            )
+        return float(novelty)
 
-        policy_actions = self.policies[policy_idx][t%self.temporal_horizon:t%self.temporal_horizon+T]  # shape [T, F]
-        wB_term_policy = 0.0
+    def _likelihood_novelty(self, beliefs):
+        novelty = 0.0
+        for modality_idx, modality in enumerate(self.A):
+            modality_beliefs = [beliefs[f] for f in self.mod_dep[modality_idx]]
+            expected_obs = self.cell_md_dot_py(modality, modality_beliefs)
+            weighted = self.cell_md_dot_py(
+                self.pA_complexity[modality_idx],
+                modality_beliefs,
+            )
+            novelty += -expected_obs.dot(weighted)
+        return novelty
 
-        for f in range(F):
-            states_f = self.pB_complexity[f].shape[0]
-
-            # Extract all transition matrices corresponding to actions at each timestep
-            actions_f = policy_actions[:, f]  # shape [T]
-            # Advanced indexing to get [T, states_f, states_f]
-            wB_matrices = self.pB_complexity[f][:, :, actions_f]  # shape [states_f, states_f, T]
-            wB_matrices = np.transpose(wB_matrices, (2, 0, 1))  # -> [T, states_f, states_f]
-
-            # Extract state posteriors at t and t+1 for factor f
-            # policy_dep_posteriors indexed as: [policy_idx, timestep, factor_idx, states_f]
-            expected_states_t = np.array([
-                self.policy_dep_posteriors[policy_idx, timestep, f]
-                for timestep in range(t, t+T)
-            ])  # shape [T, states_f]
-
-            expected_states_t1 = np.array([
-                self.policy_dep_posteriors[policy_idx, timestep, f]
-                for timestep in range(t+1, t+T+1)
-            ])  # shape [T, states_f]
-
-            # Batch bilinear form: (x_t.T @ W @ x_t+1) for all T
-            inter = np.einsum('ti,tij->tj', expected_states_t, wB_matrices)  # [T, states_f]
-            terms = np.einsum('tj,tj->t', inter, expected_states_t1)  # [T]
-
-            wB_term_policy += np.sum(terms)
-        return wB_term_policy
-   
-    
     def calculate_pA_info_gain(self, t, policy_idx, qs_fur=None):
+        """Novelty of the likelihood parameters (``pA`` or a continuous callback)."""
         if self.continous_obs:
             if qs_fur is not None:
                 return self.likelihood.parameter_information_gain(qs_fur)
@@ -1501,26 +1548,17 @@ class ActiveInfAgent:
                 )
             return information_gain
 
-        wA_term_policy = 0
         if self.deep_inference:
-            for timestep in range(t%self.temporal_horizon, self.temporal_horizon):
-                for modality_idx, modality in enumerate(self.A):
-                    wA_mod = self.pA_complexity[modality_idx]
-                    expected_obs = self.cell_md_dot_py(modality, self.policy_dep_posteriors[policy_idx, timestep, :]) 
-                    expected_obs_pA = self.cell_md_dot_py(wA_mod, self.policy_dep_posteriors[policy_idx, timestep, :])
-                    wA_term_policy += expected_obs.dot(expected_obs_pA)
-            return wA_term_policy
-        
-        else:
-            for modality_idx, modality in enumerate(self.A):
-                expected_obs = self.cell_md_dot_py(modality, qs_fur)
-                expected_obs_pA = self.cell_md_dot_py(
-                    self.pA_complexity[modality_idx],
-                    qs_fur,
-                )
-                wA_term_policy += expected_obs.dot(expected_obs_pA)
-            return wA_term_policy
-        
+            novelty = 0.0
+            for timestep in range(t % self.temporal_horizon, self.temporal_horizon):
+                beliefs = [
+                    self.policy_dep_posteriors[policy_idx, timestep, factor]
+                    for factor in range(self.num_factors)
+                ]
+                novelty += self._likelihood_novelty(beliefs)
+            return float(novelty)
+        return float(self._likelihood_novelty(qs_fur))
+
     def calculate_policy_ambiguity_continuous_mc_vec(
         self,
         t,
@@ -2868,7 +2906,10 @@ class ActiveInfAgent:
     def _transpose_B_matrix(self):
         T_pB = copy.deepcopy(self.pB)
         for factor_idx in range(self.num_factors):
-            if factor_idx in self.controlable_states:
+            if np.asarray(self.pB[factor_idx]).ndim != 3:
+                # Dependent transitions use transitions.backward_kernels.
+                T_pB[factor_idx] = copy.deepcopy(self.pB[factor_idx])
+            elif factor_idx in self.controlable_states:
                 for action_idx in range(self.controls_dim[factor_idx]):
                     T_pB[factor_idx][:,:,action_idx] = self.transpose_Bfa(self.pB[factor_idx][:,:, action_idx])
             else:

@@ -55,7 +55,8 @@ def main():
     agent.reset()
     agent.observe([0])
     agent.infer_states()
-    expected_free_energy, _ = agent.infer_policies()
+    agent.infer_policies()
+    expected_free_energy = agent.last_policy_inference.expected_free_energy
     action = agent.select_action()
 
     print("state posterior:", agent.posteriors[0])
