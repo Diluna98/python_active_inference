@@ -1375,10 +1375,9 @@ class ActiveInfAgent:
     def infer_policies(self, trial=None, t=None, gamma_const=240.0):
         """Score policies and update the policy posterior.
 
-        Returns ``(G_policy, F_policy)``: the policy scores ``-G`` (higher is
-        better) and, for deep inference, the policy free-energy scores. The
-        expected free energy ``G`` and its named terms are available on
-        ``agent.last_policy_inference``.
+        Returns ``(G_policy, F_policy)``: the negative expected and
+        variational free energies per policy (larger is better). The named
+        terms are available on ``agent.last_policy_inference``.
         """
         if trial is None:
             trial = getattr(self, "_current_trial", 0)

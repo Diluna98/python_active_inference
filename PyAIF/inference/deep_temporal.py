@@ -40,7 +40,8 @@ class DeepStateInferenceResult:
 class DeepPolicyInferenceResult(DeprecatedTermNames):
     """Diagnostics from expected-free-energy evaluation over deep policies.
 
-    ``expected_free_energy`` is ``G(pi)`` (lower is better). See
+    ``expected_free_energy`` is the negative expected free energy (larger
+    is better), the same convention as the variational free energy. See
     :mod:`PyAIF.inference.efe` for the definition of each term.
     """
 
@@ -58,9 +59,10 @@ def deep_expected_free_energy(
     ambiguity: float,
     information_gain: float = 0.0,
 ) -> float:
-    """Deprecated: return the pre-0.5.0 policy score ``-G``.
+    """Deprecated: combine the pre-0.5.0 term names.
 
-    Use :func:`PyAIF.inference.efe.expected_free_energy` instead.
+    Use :func:`PyAIF.inference.efe.expected_free_energy` instead, whose
+    ``parameter_information_gain`` is non-negative.
     """
     warnings.warn(
         "deep_expected_free_energy is deprecated; use "

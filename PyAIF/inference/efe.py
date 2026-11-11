@@ -1,23 +1,25 @@
 """Named expected-free-energy terms shared by every inference mode.
 
-PyAIF scores a policy with the standard decomposition
+PyAIF uses the negative-energy convention throughout: free energies are
+reported as negative energies that the agent *maximises* (larger is better).
+The variational free energy ``F_policy`` follows the same convention.
 
 .. code-block:: text
 
-    G(pi) = - expected_utility              E_q(o|pi)[ln P(o | C)]
-            - state_information_gain        I(o; s | pi)       (epistemic value)
-            - parameter_information_gain    novelty of A, B, D parameters
-            + policy_cost                   optional user-defined cost
+    expected_free_energy(pi) =   expected_utility            E_q(o|pi)[ln P(o | C)]
+                               + state_information_gain      I(o; s | pi) (epistemic)
+                               + parameter_information_gain  novelty of A, B, D
+                               - policy_cost                 optional user cost
 
-Lower expected free energy is better. Internally the agent stores the policy
-score ``agent.G_policy = -G(pi)`` because the policy posterior is
-``softmax(ln E + gamma * G_policy)``.
+This equals ``-G(pi)`` in the textbook sign convention. The policy posterior
+is ``softmax(ln E + gamma * expected_free_energy)`` and ``agent.G_policy``
+stores the same values.
 
-Before version 0.5.0 these terms were reported as ``risk`` (holding the
-expected utility in categorical modes and its negative in continuous modes),
-``ambiguity`` (holding the state information gain) and ``information_gain``
-(holding the negative parameter novelty). The old names remain available as
-deprecated aliases.
+Before version 0.5.0 these terms were reported as ``risk`` (expected utility
+in categorical modes, but its negative in continuous modes), ``ambiguity``
+(which always held the state information gain) and ``information_gain``
+(which held the negative parameter novelty). The old names remain available
+as deprecated aliases.
 """
 
 from __future__ import annotations
@@ -38,13 +40,16 @@ def expected_free_energy(
     parameter_information_gain: float = 0.0,
     policy_cost: float = 0.0,
 ) -> float:
-    """Combine named terms into the expected free energy (lower is better)."""
+    """Combine named terms into the negative expected free energy.
+
+    Larger is better, matching the sign convention of ``F_policy``.
+    """
 
     return float(
-        -expected_utility
-        - state_information_gain
-        - parameter_information_gain
-        + policy_cost
+        expected_utility
+        + state_information_gain
+        + parameter_information_gain
+        - policy_cost
     )
 
 
@@ -161,13 +166,17 @@ def store_policy_terms(
     parameter_information_gain: Sequence[float],
     policy_cost: Sequence[float],
 ) -> np.ndarray:
-    """Write named terms to the agent and return the expected free energy."""
+    """Write named terms to the agent and return the policy scores.
+
+    The returned (negative) expected free energies are larger for better
+    policies and are also stored in ``agent.G_policy``.
+    """
 
     utility = np.asarray(expected_utility, dtype=float)
     state_gain = np.asarray(state_information_gain, dtype=float)
     parameter_gain = np.asarray(parameter_information_gain, dtype=float)
     cost = np.asarray(policy_cost, dtype=float)
-    free_energy = -utility - state_gain - parameter_gain + cost
+    free_energy = utility + state_gain + parameter_gain - cost
 
     agent.expected_utility = utility.tolist()
     agent.state_information_gain = state_gain.tolist()
@@ -175,11 +184,11 @@ def store_policy_terms(
     agent.policy_cost = cost.tolist()
     agent.expected_free_energy = free_energy.tolist()
     # Deprecated attribute names kept for existing research scripts.
-    agent.risk = (-utility).tolist()
+    agent.risk = utility.tolist()
     agent.ambiguity = state_gain.tolist()
     agent.info_gain = parameter_gain.tolist()
     for policy_index, value in enumerate(free_energy):
-        agent.G_policy[policy_index] = -value
+        agent.G_policy[policy_index] = value
     return free_energy
 
 
@@ -192,14 +201,14 @@ class DeprecatedTermNames:
 
     @property
     def risk(self) -> tuple[float, ...]:
-        """Deprecated: expected preference cost, ``-expected_utility``."""
+        """Deprecated: this held the expected utility in categorical modes."""
 
         warnings.warn(
-            "'risk' is deprecated; use 'expected_utility' (risk == -expected_utility).",
+            "'risk' is deprecated; use 'expected_utility'.",
             DeprecationWarning,
             stacklevel=2,
         )
-        return tuple(-value for value in self.expected_utility)
+        return self.expected_utility
 
     @property
     def ambiguity(self) -> tuple[float, ...]:

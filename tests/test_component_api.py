@@ -362,8 +362,8 @@ def test_discrete_shallow_agent_updates_beliefs_and_selects_action():
     )
 
     G, F = agent.infer_policies()
-    # Policy score -G(pi) = expected utility + state information gain.
-    # Before 0.5.0 shallow categorical mode added the negated utility.
+    # Negative EFE = expected utility + state information gain (larger is better).
+    # Before 0.5.0 shallow categorical mode negated the utility.
     np.testing.assert_allclose(
         np.asarray(G, dtype=float),
         np.array([-0.4810085764151115, -0.4810085764151115]),
@@ -372,7 +372,7 @@ def test_discrete_shallow_agent_updates_beliefs_and_selects_action():
     np.testing.assert_allclose(agent.posterior_pi, np.array([0.5, 0.5]))
     np.testing.assert_allclose(
         agent.last_policy_inference.expected_free_energy,
-        -np.asarray(G, dtype=float),
+        np.asarray(G, dtype=float),
     )
     np.testing.assert_allclose(
         agent.last_policy_inference.policy_posterior,
@@ -456,7 +456,7 @@ def test_discrete_deep_agent_updates_policy_dependent_beliefs():
     assert agent.last_policy_inference.parameter_information_gain == (0.0, 0.0)
     np.testing.assert_allclose(
         agent.last_policy_inference.expected_free_energy,
-        -np.asarray(G, dtype=float),
+        np.asarray(G, dtype=float),
     )
     np.testing.assert_allclose(
         agent.last_policy_inference.policy_posterior,
@@ -484,7 +484,7 @@ def test_expected_free_energy_combines_named_terms():
             parameter_information_gain=0.25,
             policy_cost=0.5,
         ),
-        1.3862943611198906 - 0.4672138063843514 - 0.25 + 0.5,
+        -1.3862943611198906 + 0.4672138063843514 + 0.25 - 0.5,
     )
 
 

@@ -246,10 +246,11 @@ See [Model shapes](docs/model-shapes.md#transitions-that-depend-on-other-factors
 
 ## Expected free energy and policy costs
 
-`agent.last_policy_inference` reports `expected_free_energy` (lower is better)
-and its terms `expected_utility`, `state_information_gain`,
-`parameter_information_gain` and `policy_cost`. A domain-specific cost can be
-added to every policy:
+Free energies are reported as negative energies that the agent maximises
+(larger is better), like the variational free energy. `agent.last_policy_inference`
+reports `expected_free_energy` and its terms `expected_utility`,
+`state_information_gain`, `parameter_information_gain` and `policy_cost`. A
+domain-specific cost can be subtracted from every policy:
 
 ```python
 def human_effort(agent, policy_index, expected_states):

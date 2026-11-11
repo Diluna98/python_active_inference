@@ -61,15 +61,16 @@ def test_agent_acts_towards_preferred_outcomes(inference):
     agent, action = decide(inference)
     assert int(action[0]) == 1
     result = agent.last_policy_inference
+    # Negative-energy convention: the better policy has the larger value.
     efe = np.asarray(result.expected_free_energy, dtype=float)
-    assert efe[1] < efe[0]
-    np.testing.assert_allclose(efe, -np.asarray(agent.G_policy, dtype=float))
+    assert efe[1] > efe[0]
+    np.testing.assert_allclose(efe, np.asarray(agent.G_policy, dtype=float))
     np.testing.assert_allclose(
         efe,
-        -np.asarray(result.expected_utility)
-        - np.asarray(result.state_information_gain)
-        - np.asarray(result.parameter_information_gain)
-        + np.asarray(result.policy_cost),
+        np.asarray(result.expected_utility)
+        + np.asarray(result.state_information_gain)
+        + np.asarray(result.parameter_information_gain)
+        - np.asarray(result.policy_cost),
     )
 
 
@@ -90,7 +91,7 @@ def test_policy_cost_shifts_expected_free_energy(inference):
     np.testing.assert_allclose(
         np.asarray(agent.last_policy_inference.expected_free_energy, dtype=float),
         np.asarray(baseline.last_policy_inference.expected_free_energy, dtype=float)
-        + np.array([0.0, 100.0]),
+        - np.array([0.0, 100.0]),
     )
     assert agent.last_policy_inference.policy_cost == (0.0, 100.0)
     assert sorted(index for index, _ in seen) == [0, 1]
@@ -132,6 +133,6 @@ def test_deprecated_names_warn_and_map_to_new_terms():
         ambiguity = result.ambiguity
     with pytest.deprecated_call():
         information_gain = result.information_gain
-    np.testing.assert_allclose(risk, -np.asarray(result.expected_utility))
+    assert risk == result.expected_utility
     assert ambiguity == result.state_information_gain
     assert information_gain == result.parameter_information_gain

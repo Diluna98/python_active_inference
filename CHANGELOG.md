@@ -14,7 +14,7 @@
   dependencies use the unchanged single-factor code path.
 - `ActiveInfAgent(policy_cost_fn=...)`: an optional callback
   `policy_cost_fn(agent, policy_index, expected_states) -> float` whose value
-  is added to each policy's expected free energy.
+  is subtracted from each policy's (negative) expected free energy.
 - Named expected-free-energy terms on every policy result:
   `expected_utility`, `state_information_gain`, `parameter_information_gain`
   and `policy_cost`, plus `PyAIF.expected_free_energy(...)`,
@@ -24,9 +24,10 @@
 ### Fixed
 
 - Shallow categorical inference negated the expected utility, so agents
-  preferred the least preferred outcomes. Policy scores now use
-  `expected_utility + state_information_gain + parameter_information_gain -
-  policy_cost` in every mode.
+  preferred the least preferred outcomes. Every mode now scores policies
+  with `expected_utility + state_information_gain +
+  parameter_information_gain - policy_cost` (negative energy, larger is
+  better).
 - Parameter novelty (`pA`, `pB`, `pD`) entered the shallow and continuous deep
   scores with the wrong sign. All novelty methods now return non-negative
   information gain.
@@ -39,16 +40,14 @@
   `store_parameters()` was called manually. `reset()` now refreshes them, for
   continuous models as well.
 
-### Changed (breaking)
+### Changed
 
-- `ShallowPolicyInferenceResult.expected_free_energy` and
-  `DeepPolicyInferenceResult.expected_free_energy` now hold the expected free
-  energy `G` (lower is better). `agent.G_policy` and the value returned by
-  `infer_policies()` remain the policy score `-G`.
+- Free energies keep the negative-energy convention (larger is better):
+  `expected_free_energy`, `agent.G_policy` and `F_policy` are maximised.
 - The result fields `risk`, `ambiguity` and `information_gain` are deprecated
-  read-only aliases: `risk == -expected_utility`,
-  `ambiguity == state_information_gain` and
-  `information_gain == parameter_information_gain`.
+  read-only aliases of `expected_utility`, `state_information_gain` and
+  `parameter_information_gain`. `parameter_information_gain` is non-negative,
+  whereas the old `information_gain` held the negative novelty.
 - `deep_expected_free_energy`, `deep_categorical_policy_risk` and
   `deep_categorical_policy_ambiguity` are deprecated.
 

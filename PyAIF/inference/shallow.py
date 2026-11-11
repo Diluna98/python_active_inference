@@ -35,7 +35,8 @@ class ShallowStateInferenceResult:
 class ShallowPolicyInferenceResult(DeprecatedTermNames):
     """Diagnostics from one shallow policy-inference update.
 
-    ``expected_free_energy`` is ``G(pi)`` (lower is better). See
+    ``expected_free_energy`` is the negative expected free energy (larger
+    is better), the same convention as the variational free energy. See
     :mod:`PyAIF.inference.efe` for the definition of each term.
     """
 

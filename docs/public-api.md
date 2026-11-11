@@ -204,25 +204,28 @@ restriction described above also apply. Run
 
 ## Policy scoring
 
-Every policy result reports the expected free energy `G(pi)` (lower is
-better) and its named terms:
+PyAIF reports free energies as negative energies that the agent maximises
+(larger is better), for both the expected free energy and the variational
+free energy (`F_policy`). Every policy result reports
+`expected_free_energy` and its named terms:
 
 ```text
-G = -expected_utility             E_q(o)[ln P(o | C)]
-    - state_information_gain      epistemic value
-    - parameter_information_gain  novelty of learned A, B, D
-    + policy_cost                 optional policy_cost_fn
+expected_free_energy =   expected_utility            E_q(o)[ln P(o | C)]
+                       + state_information_gain      epistemic value
+                       + parameter_information_gain  novelty of learned A, B, D
+                       - policy_cost                 optional policy_cost_fn
 ```
 
 `agent.G_policy` and the first value returned by `infer_policies()` hold the
-policy score `-G`, which enters `softmax(ln E + gamma * G_policy)`. The
-pre-0.5.0 names `risk`, `ambiguity` and `information_gain` remain as
-deprecated aliases.
+same values, which enter `softmax(ln E + gamma * G_policy)`. The pre-0.5.0
+names `risk`, `ambiguity` and `information_gain` remain as deprecated
+aliases.
 
 ### Policy cost
 
-`ActiveInfAgent(..., policy_cost_fn=fn)` adds `fn(agent, policy_index,
-expected_states)` to each policy's expected free energy. `expected_states` is
+`ActiveInfAgent(..., policy_cost_fn=fn)` subtracts `fn(agent,
+policy_index, expected_states)` from each policy's (negative) expected free
+energy, so a larger cost makes a policy less likely. `expected_states` is
 a tuple of factor beliefs after the action for shallow inference, and a tuple
 of per-time-point factor beliefs for deep and receding inference.
 
