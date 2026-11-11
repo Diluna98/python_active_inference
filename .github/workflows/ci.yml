@@ -10,7 +10,8 @@ permissions:
 jobs:
   test:
     name: Python ${{ matrix.python-version }}
-    runs-on: ubuntu-latest
+    # ubuntu-latest (26.04) no longer provides Python 3.9.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -59,7 +60,7 @@ jobs:
           python -m venv /tmp/pyaif-smoke
           /tmp/pyaif-smoke/bin/python -m pip install dist/*.whl
           cd /tmp
-          /tmp/pyaif-smoke/bin/python -c "import importlib.metadata; import PyAIF; assert importlib.metadata.version('pyaif-toolkit') == PyAIF.__version__ == '0.4.1'"
+          /tmp/pyaif-smoke/bin/python -c "import importlib.metadata; import PyAIF; assert importlib.metadata.version('pyaif-toolkit') == PyAIF.__version__ == '0.5.0'"
       - name: Verify wheel contents
         run: |
           python - <<'PY'

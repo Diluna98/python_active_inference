@@ -2576,10 +2576,10 @@ class ActiveInfAgent:
             # 1. UPDATE POLICIES using the current gamma
             # Note: self.E is the preference/habit, G is expected free energy, F is VFE (evidence)
             ln_prior = self.log_stable(self.E) + gamma_t * self.G_policy
-            self.prior_pi = self.softmax(np.float64(ln_prior), axis=None)
+            self.prior_pi = self.softmax(np.asarray(ln_prior, dtype=float), axis=None)
             
             ln_posterior = ln_prior + self.F_policy
-            self.posterior_pi = self.softmax(np.float64(ln_posterior), axis=None)
+            self.posterior_pi = self.softmax(np.asarray(ln_posterior, dtype=float), axis=None)
             
             # 2. CALCULATE GRADIENT (G_error)
             # This is the difference in Expected Free Energy between prior and posterior

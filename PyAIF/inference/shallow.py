@@ -237,7 +237,10 @@ def infer_shallow_policies(
     )
 
     agent.posterior_pi = softmax(
-        np.float64(log_stable_probability(agent.E) + policy_precision * agent.G_policy),
+        np.asarray(
+            log_stable_probability(agent.E) + policy_precision * agent.G_policy,
+            dtype=float,
+        ),
         axis=None,
     )
 
