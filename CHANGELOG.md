@@ -2,6 +2,55 @@
 
 ## Unreleased
 
+## 0.5.0 - 2026-11-11
+
+### Added
+
+- `GenerativeModel(B_dependencies=...)`: a factor's transition may depend on
+  the previous states of other factors. `B[f]` then has shape
+  `(states_dim[f], *[states_dim[d] for d in B_dependencies[f]], controls_dim[f])`.
+  Supported by shallow, deep temporal, receding and filtered receding
+  inference, Dirichlet `B` learning and transition novelty. Models without
+  dependencies use the unchanged single-factor code path.
+- `ActiveInfAgent(policy_cost_fn=...)`: an optional callback
+  `policy_cost_fn(agent, policy_index, expected_states) -> float` whose value
+  is subtracted from each policy's (negative) expected free energy.
+- Named expected-free-energy terms on every policy result:
+  `expected_utility`, `state_information_gain`, `parameter_information_gain`
+  and `policy_cost`, plus `PyAIF.expected_free_energy(...)`,
+  `categorical_expected_utility` and `categorical_state_information_gain`.
+- `PyAIF.transitions` with reusable prediction, message and evidence helpers.
+
+### Fixed
+
+- Shallow categorical inference negated the expected utility, so agents
+  preferred the least preferred outcomes. Every mode now scores policies
+  with `expected_utility + state_information_gain +
+  parameter_information_gain - policy_cost` (negative energy, larger is
+  better).
+- Parameter novelty (`pA`, `pB`, `pD`) entered the shallow and continuous deep
+  scores with the wrong sign. All novelty methods now return non-negative
+  information gain.
+- Transition novelty paired the previous-state belief with the next-state axis
+  of the Dirichlet weights. It now computes `sum q(s') W(s', s) q(s)`.
+- Shallow and small-policy-set deep scoring ignored `modality_dependencies`
+  when contracting likelihoods; modalities that depend on a subset of factors
+  are now scored correctly in every mode.
+- Novelty weights were computed from raw Dirichlet counts until
+  `store_parameters()` was called manually. `reset()` now refreshes them, for
+  continuous models as well.
+
+### Changed
+
+- Free energies keep the negative-energy convention (larger is better):
+  `expected_free_energy`, `agent.G_policy` and `F_policy` are maximised.
+- The result fields `risk`, `ambiguity` and `information_gain` are deprecated
+  read-only aliases of `expected_utility`, `state_information_gain` and
+  `parameter_information_gain`. `parameter_information_gain` is non-negative,
+  whereas the old `information_gain` held the negative novelty.
+- `deep_expected_free_energy`, `deep_categorical_policy_risk` and
+  `deep_categorical_policy_ambiguity` are deprecated.
+
 ## 0.4.1 - 2026-09-18
 
 ### Performance

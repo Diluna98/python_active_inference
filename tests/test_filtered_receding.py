@@ -11,7 +11,7 @@ from PyAIF import (
     FilteredRecedingHorizonInference,
     GenerativeModel,
     ShallowInference,
-    deep_categorical_policy_risk,
+    categorical_expected_utility,
 )
 from test_component_api import continuous_likelihood, make_components, object_array
 
@@ -115,15 +115,15 @@ def test_policy_stage_rolls_out_full_horizon_and_always_acts(continuous, horizon
                         expected / expected.sum(),
                     )
             if not continuous:
-                expected_risk, _ = deep_categorical_policy_risk(
+                expected_utility, _ = categorical_expected_utility(
                     agent.A,
                     agent.C,
                     agent.policy_dep_posteriors[policy_index],
                     1,
                 )
                 assert np.isclose(
-                    agent.last_policy_inference.risk[policy_index],
-                    expected_risk,
+                    agent.last_policy_inference.expected_utility[policy_index],
+                    expected_utility,
                 )
         assert np.isclose(np.asarray(agent.posterior_pi, float).sum(), 1.0)
         assert agent.select_action() is not None

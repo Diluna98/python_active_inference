@@ -10,6 +10,11 @@ from .deep_temporal import (
     infer_deep_temporal_policies,
     infer_deep_temporal_states,
 )
+from .efe import (
+    categorical_expected_utility,
+    categorical_state_information_gain,
+    expected_free_energy,
+)
 from .shallow import (
     ShallowInference,
     ShallowPolicyInferenceResult,
@@ -35,6 +40,9 @@ __all__ = [
     "ShallowInference",
     "ShallowPolicyInferenceResult",
     "ShallowStateInferenceResult",
+    "categorical_expected_utility",
+    "categorical_state_information_gain",
+    "expected_free_energy",
     "deep_categorical_policy_ambiguity",
     "deep_categorical_policy_risk",
     "deep_expected_free_energy",

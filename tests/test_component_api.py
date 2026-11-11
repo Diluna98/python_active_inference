@@ -11,6 +11,7 @@ from PyAIF import (
     GenerativeModel,
     ShallowInference,
     deep_expected_free_energy,
+    expected_free_energy,
 )
 from PyAIF.inference.deep_temporal import _infer_deep_policy_states
 from PyAIF.inference.continuous import continuous_policy_terms
@@ -141,8 +142,8 @@ def test_continuous_deep_agent_runs_temporal_inference_and_policy_scoring():
     assert np.all(np.isfinite(np.asarray(expected_free_energy, dtype=float)))
     assert np.all(np.isfinite(np.asarray(variational_free_energy, dtype=float)))
     assert np.isclose(agent.posterior_pi.sum(), 1.0)
-    assert all(np.isfinite(agent.last_policy_inference.risk))
-    assert all(np.isfinite(agent.last_policy_inference.ambiguity))
+    assert all(np.isfinite(agent.last_policy_inference.expected_utility))
+    assert all(np.isfinite(agent.last_policy_inference.state_information_gain))
 
 
 def test_continuous_joint_preferences_support_multiple_modalities():
@@ -361,14 +362,16 @@ def test_discrete_shallow_agent_updates_beliefs_and_selects_action():
     )
 
     G, F = agent.infer_policies()
+    # Negative EFE = expected utility + state information gain (larger is better).
+    # Before 0.5.0 shallow categorical mode negated the utility.
     np.testing.assert_allclose(
         np.asarray(G, dtype=float),
-        np.array([0.9052857847047793, 0.9052857847047793]),
+        np.array([-0.4810085764151115, -0.4810085764151115]),
     )
     assert F is None
     np.testing.assert_allclose(agent.posterior_pi, np.array([0.5, 0.5]))
     np.testing.assert_allclose(
-        agent.last_policy_inference.expected_free_energy.astype(float),
+        agent.last_policy_inference.expected_free_energy,
         np.asarray(G, dtype=float),
     )
     np.testing.assert_allclose(
@@ -376,11 +379,12 @@ def test_discrete_shallow_agent_updates_beliefs_and_selects_action():
         agent.posterior_pi,
     )
     np.testing.assert_allclose(
-        agent.last_policy_inference.risk,
+        agent.last_policy_inference.expected_utility,
         np.array([-np.log(2.0), -np.log(2.0)]),
     )
-    assert len(agent.last_policy_inference.ambiguity) == 2
-    assert agent.last_policy_inference.information_gain == ()
+    assert len(agent.last_policy_inference.state_information_gain) == 2
+    assert agent.last_policy_inference.parameter_information_gain == (0.0, 0.0)
+    assert agent.last_policy_inference.policy_cost == (0.0, 0.0)
     assert agent.select_action().shape == (1,)
 
 
@@ -442,14 +446,18 @@ def test_discrete_deep_agent_updates_policy_dependent_beliefs():
     )
     np.testing.assert_allclose(agent.posterior_pi, np.array([0.5, 0.5]))
     np.testing.assert_allclose(
-        agent.last_policy_inference.risk,
+        agent.last_policy_inference.expected_utility,
         np.array([-1.3862943611198906, -1.3862943611198906]),
     )
     np.testing.assert_allclose(
-        agent.last_policy_inference.ambiguity,
+        agent.last_policy_inference.state_information_gain,
         np.array([0.4672138063843514, 0.4672138063843514]),
     )
-    assert agent.last_policy_inference.information_gain == (0.0, 0.0)
+    assert agent.last_policy_inference.parameter_information_gain == (0.0, 0.0)
+    np.testing.assert_allclose(
+        agent.last_policy_inference.expected_free_energy,
+        np.asarray(G, dtype=float),
+    )
     np.testing.assert_allclose(
         agent.last_policy_inference.policy_posterior,
         agent.posterior_pi,
@@ -458,14 +466,25 @@ def test_discrete_deep_agent_updates_policy_dependent_beliefs():
     assert agent.action_history[0, 0] == selected_action[0]
 
 
-def test_deep_expected_free_energy_combines_policy_terms():
-    assert np.isclose(
-        deep_expected_free_energy(
+def test_deprecated_deep_expected_free_energy_keeps_old_score():
+    with pytest.deprecated_call():
+        score = deep_expected_free_energy(
             risk=-1.3862943611198906,
             ambiguity=0.4672138063843514,
             information_gain=0.0,
+        )
+    assert np.isclose(score, -0.9190805547355392)
+
+
+def test_expected_free_energy_combines_named_terms():
+    assert np.isclose(
+        expected_free_energy(
+            expected_utility=-1.3862943611198906,
+            state_information_gain=0.4672138063843514,
+            parameter_information_gain=0.25,
+            policy_cost=0.5,
         ),
-        -0.9190805547355392,
+        -1.3862943611198906 + 0.4672138063843514 + 0.25 - 0.5,
     )
 
 

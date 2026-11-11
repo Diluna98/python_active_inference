@@ -6,6 +6,7 @@ from typing import Any, Sequence
 import numpy as np
 
 from PyAIF.numerics import log_stable_probability, softmax
+from PyAIF.transitions import predict_states
 
 from .deep_temporal import infer_deep_temporal_policies
 from .receding import RecedingHorizonInference, require_stage
@@ -220,6 +221,19 @@ def roll_out_policy_states(
         for factor, posterior in enumerate(current_posteriors):
             agent.policy_dep_posteriors[policy_index, 0, factor] = posterior.copy()
         for policy_step, action in enumerate(policy):
+            if getattr(agent, "has_B_dependencies", False):
+                previous_beliefs = [
+                    agent.policy_dep_posteriors[policy_index, policy_step, factor]
+                    for factor in range(agent.num_factors)
+                ]
+                predictions = predict_states(
+                    agent.B, agent.B_dependencies, previous_beliefs, action
+                )
+                for factor, prediction in enumerate(predictions):
+                    agent.policy_dep_posteriors[
+                        policy_index, policy_step + 1, factor
+                    ] = prediction
+                continue
             for factor in range(agent.num_factors):
                 previous = agent.policy_dep_posteriors[
                     policy_index,

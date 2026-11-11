@@ -8,6 +8,13 @@ import numpy as np
 
 from PyAIF.inference.base import map_policies
 from PyAIF.inference.continuous import continuous_policy_terms
+from PyAIF.inference.efe import (
+    DeprecatedTermNames,
+    categorical_expected_utility,
+    categorical_state_information_gain,
+    evaluate_policy_cost,
+    store_policy_terms,
+)
 from PyAIF.numerics import log_stable_probability, softmax
 
 
@@ -25,14 +32,20 @@ class ShallowStateInferenceResult:
 
 
 @dataclass(frozen=True)
-class ShallowPolicyInferenceResult:
-    """Diagnostics from one shallow categorical policy-inference update."""
+class ShallowPolicyInferenceResult(DeprecatedTermNames):
+    """Diagnostics from one shallow policy-inference update.
+
+    ``expected_free_energy`` is the negative expected free energy (larger
+    is better), the same convention as the variational free energy. See
+    :mod:`PyAIF.inference.efe` for the definition of each term.
+    """
 
     expected_free_energy: np.ndarray
     policy_posterior: np.ndarray
-    risk: tuple[float, ...]
-    ambiguity: tuple[float, ...]
-    information_gain: tuple[float, ...]
+    expected_utility: tuple[float, ...]
+    state_information_gain: tuple[float, ...]
+    parameter_information_gain: tuple[float, ...]
+    policy_cost: tuple[float, ...]
 
 
 def infer_shallow_states(
@@ -162,75 +175,83 @@ def infer_shallow_policies(
 
     def evaluate_policy(policy_index: int):
         policy = agent.policies[policy_index]
-        information_gain = 0.0
-        reported_information_gain = None
         expected_states = agent.get_expected_states(policy[0])
+        next_beliefs = [expected_states[factor] for factor in range(agent.num_factors)]
 
         if agent.continous_obs:
-            risk, ambiguity, _ = continuous_policy_terms(
+            preference_cost, state_information_gain, _ = continuous_policy_terms(
                 agent.likelihood,
                 expected_states,
                 seed_offset=time_step * len(agent.policies) + policy_index,
             )
+            expected_utility = -preference_cost
         else:
-            ambiguity = agent.calculate_policy_ambiguity(
-                0,
-                policy_index,
-                expected_states,
+            # Shallow preferences have one column per outcome; reuse the deep
+            # helpers on a one-step trajectory.
+            trajectory = [next_beliefs]
+            log_preferences = [
+                np.asarray(values, dtype=float).reshape(-1, 1) for values in agent.C
+            ]
+            state_information_gain = categorical_state_information_gain(
+                agent.A, trajectory, 0, agent.mod_dep
             )
-            risk = agent.calculate_policy_risk(
-                0,
-                policy_index,
-                expected_states,
+            expected_utility, _ = categorical_expected_utility(
+                agent.A, log_preferences, trajectory, 0, agent.mod_dep
             )
+
+        parameter_information_gain = 0.0
         if agent.learning_D:
-            information_gain += agent.calculate_pD_info_gain(policy_index)
+            parameter_information_gain += agent.calculate_pD_info_gain(policy_index)
         if agent.learning_A:
             if agent.continous_obs:
-                likelihood_information_gain = (
+                parameter_information_gain += (
                     agent.likelihood.parameter_information_gain(expected_states)
                 )
             else:
-                likelihood_information_gain = agent.calculate_pA_info_gain(
+                parameter_information_gain += agent.calculate_pA_info_gain(
                     time_step,
                     policy_index,
                     expected_states,
                 )
-            information_gain += likelihood_information_gain
-            reported_information_gain = likelihood_information_gain
         if agent.learning_B:
-            information_gain += agent.calculate_pB_info_gain(
+            parameter_information_gain += agent.calculate_pB_info_gain(
                 time_step,
                 policy_index,
                 expected_states,
             )
 
-        expected_free_energy = -risk + ambiguity + information_gain
+        policy_cost = evaluate_policy_cost(agent, policy_index, tuple(next_beliefs))
         return (
-            float(risk),
-            float(ambiguity),
-            reported_information_gain,
-            float(expected_free_energy),
+            float(expected_utility),
+            float(state_information_gain),
+            float(parameter_information_gain),
+            policy_cost,
         )
 
     results = map_policies(evaluate_policy, len(agent.policies), policy_workers)
-    agent.risk = [result[0] for result in results]
-    agent.ambiguity = [result[1] for result in results]
-    agent.info_gain = [result[2] for result in results if result[2] is not None]
-    for policy_index, result in enumerate(results):
-        agent.G_policy[policy_index] = result[3]
+    store_policy_terms(
+        agent,
+        [result[0] for result in results],
+        [result[1] for result in results],
+        [result[2] for result in results],
+        [result[3] for result in results],
+    )
 
     agent.posterior_pi = softmax(
-        np.float64(log_stable_probability(agent.E) + policy_precision * agent.G_policy),
+        np.asarray(
+            log_stable_probability(agent.E) + policy_precision * agent.G_policy,
+            dtype=float,
+        ),
         axis=None,
     )
 
     return ShallowPolicyInferenceResult(
-        expected_free_energy=copy.deepcopy(agent.G_policy),
+        expected_free_energy=np.asarray(agent.expected_free_energy, dtype=float),
         policy_posterior=copy.deepcopy(agent.posterior_pi),
-        risk=tuple(float(value) for value in agent.risk),
-        ambiguity=tuple(float(value) for value in agent.ambiguity),
-        information_gain=tuple(float(value) for value in agent.info_gain),
+        expected_utility=tuple(agent.expected_utility),
+        state_information_gain=tuple(agent.state_information_gain),
+        parameter_information_gain=tuple(agent.parameter_information_gain),
+        policy_cost=tuple(agent.policy_cost),
     )
 
 
